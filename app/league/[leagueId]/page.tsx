@@ -3,6 +3,7 @@ import Navbar from '@/components/Navbar'
 import LeagueWeekSelector from '@/components/LeagueWeekSelector'
 import TransactionCard from '@/components/TransactionCard'
 import { createClient } from '@/lib/supabase/server'
+import { isLeagueAdmin } from '@/lib/permissions'
 import {
   Swords,
   Trophy,
@@ -168,7 +169,11 @@ export default async function LeaguePage({
     teamByRosterId.set(Number(team.sleeper_roster_id), team)
   }
 
-  const isAdmin = !!user && league?.admin_id === user.id
+  const isAdmin = await isLeagueAdmin({
+    supabase,
+    leagueId,
+    userId: user?.id,
+  })
 
   const groupedMatchups =
     matchups?.reduce((acc: Record<string, any[]>, matchup: any) => {

@@ -2,16 +2,25 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Search, UserPlus, PenLine, Shield, Trash2 } from 'lucide-react'
+import {
+  Search,
+  UserPlus,
+  PenLine,
+  Shield,
+  ShieldCheck,
+  Trash2,
+} from 'lucide-react'
 
 export default function MemberInviteManager({
   leagueId,
   members,
   invites,
+  currentUserId,
 }: {
   leagueId: string
   members: any[]
   invites: any[]
+  currentUserId: string
 }) {
   const supabase = createClient()
 
@@ -25,15 +34,19 @@ export default function MemberInviteManager({
     setSearching(true)
 
     if (!query.trim()) {
-      setMessage('Search by username or email.')
+      setMessage('Search by username, display name, or email.')
       setSearching(false)
       return
     }
 
+    const safeQuery = query.trim().replaceAll(',', '')
+
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .or(`username.ilike.%${query}%,email.ilike.%${query}%,display_name.ilike.%${query}%`)
+      .or(
+        `username.ilike.%${safeQuery}%,email.ilike.%${safeQuery}%,display_name.ilike.%${safeQuery}%`
+      )
       .limit(8)
 
     if (error) {
@@ -99,9 +112,66 @@ export default function MemberInviteManager({
     window.location.reload()
   }
 
-  async function removeMember(member: any) {
+  async function toggleAdmin(member: any) {
+    setMessage('')
+
+    const isCurrentlyAdmin = member.role === 'admin'
+
+    if (member.user_id === currentUserId && isCurrentlyAdmin) {
+      setMessage('You cannot remove your own admin access.')
+      return
+    }
+
     const confirmed = window.confirm(
-      `Remove ${member.display_name || 'this member'} from the league?`
+      isCurrentlyAdmin
+        ? `Remove admin access from ${
+            member.profiles?.display_name ||
+            member.display_name ||
+            member.profiles?.email ||
+            'this member'
+          }?`
+        : `Make ${
+            member.profiles?.display_name ||
+            member.display_name ||
+            member.profiles?.email ||
+            'this member'
+          } a league admin?`
+    )
+
+    if (!confirmed) return
+
+    const { error } = await supabase
+      .from('league_members')
+      .update({
+        role: isCurrentlyAdmin ? 'member' : 'admin',
+        can_write: isCurrentlyAdmin ? member.can_write : true,
+      })
+      .eq('id', member.id)
+      .eq('league_id', leagueId)
+
+    if (error) {
+      setMessage(error.message)
+      return
+    }
+
+    window.location.reload()
+  }
+
+  async function removeMember(member: any) {
+    setMessage('')
+
+    if (member.user_id === currentUserId) {
+      setMessage('You cannot remove yourself from the league.')
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Remove ${
+        member.profiles?.display_name ||
+        member.display_name ||
+        member.profiles?.email ||
+        'this member'
+      } from the league?`
     )
 
     if (!confirmed) return
@@ -142,9 +212,10 @@ export default function MemberInviteManager({
 
   return (
     <section className="rounded-[2rem] border border-zinc-800 bg-zinc-900 p-6">
-      <h2 className="text-3xl font-black">Members & Writers</h2>
+      <h2 className="text-3xl font-black">Members, Writers & Admins</h2>
       <p className="mt-2 text-sm text-zinc-400">
-        Invite site users and control who can write articles.
+        Invite site users, control who can write articles, and promote trusted
+        users to league admin.
       </p>
 
       <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
@@ -210,42 +281,60 @@ export default function MemberInviteManager({
         <h3 className="text-xl font-black">Current Site Members</h3>
 
         <div className="mt-4 space-y-3">
-          {siteMembers.map((member) => (
-            <div
-              key={member.id}
-              className="flex flex-col justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-4 md:flex-row md:items-center"
-            >
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-black">
-                    {member.profiles?.display_name ||
-                      member.display_name ||
-                      member.profiles?.email ||
-                      'Unknown Member'}
+          {siteMembers.map((member) => {
+            const isAdmin = member.role === 'admin'
+            const isSelf = member.user_id === currentUserId
+
+            return (
+              <div
+                key={member.id}
+                className="flex flex-col justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-4 md:flex-row md:items-center"
+              >
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-black">
+                      {member.profiles?.display_name ||
+                        member.display_name ||
+                        member.profiles?.email ||
+                        'Unknown Member'}
+                    </p>
+
+                    {isAdmin && (
+                      <span className="flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1 text-xs font-black text-zinc-950">
+                        <ShieldCheck size={12} />
+                        Admin
+                      </span>
+                    )}
+
+                    {member.can_write && (
+                      <span className="flex items-center gap-1 rounded-full bg-zinc-800 px-3 py-1 text-xs font-bold text-emerald-300">
+                        <PenLine size={12} />
+                        Writer
+                      </span>
+                    )}
+
+                    {isSelf && (
+                      <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-bold text-zinc-300">
+                        You
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="mt-1 text-sm text-zinc-500">
+                    {member.profiles?.email || member.display_name}
                   </p>
-
-                  {member.role === 'admin' && (
-                    <span className="flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1 text-xs font-black text-zinc-950">
-                      <Shield size={12} />
-                      Admin
-                    </span>
-                  )}
-
-                  {member.can_write && (
-                    <span className="flex items-center gap-1 rounded-full bg-zinc-800 px-3 py-1 text-xs font-bold text-emerald-300">
-                      <PenLine size={12} />
-                      Writer
-                    </span>
-                  )}
                 </div>
 
-                <p className="mt-1 text-sm text-zinc-500">
-                  {member.profiles?.email || member.display_name}
-                </p>
-              </div>
-
-              {member.role !== 'admin' && (
                 <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => toggleAdmin(member)}
+                    disabled={isSelf && isAdmin}
+                    className="flex items-center gap-2 rounded-xl border border-zinc-700 px-4 py-2 text-sm font-bold hover:bg-zinc-900 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Shield size={15} />
+                    {isAdmin ? 'Remove Admin' : 'Make Admin'}
+                  </button>
+
                   <button
                     onClick={() => toggleWriter(member)}
                     className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-bold hover:bg-zinc-900"
@@ -255,15 +344,16 @@ export default function MemberInviteManager({
 
                   <button
                     onClick={() => removeMember(member)}
-                    className="flex items-center gap-2 rounded-xl border border-red-900 px-4 py-2 text-sm font-bold text-red-300 hover:bg-red-950/40"
+                    disabled={isSelf}
+                    className="flex items-center gap-2 rounded-xl border border-red-900 px-4 py-2 text-sm font-bold text-red-300 hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Trash2 size={15} />
                     Remove
                   </button>
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            )
+          })}
 
           {!siteMembers.length && (
             <p className="text-zinc-400">No site members have joined yet.</p>
