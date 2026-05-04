@@ -1,26 +1,134 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #09090b;
+  --foreground: #ffffff;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--background);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+input,
+textarea,
+button,
+select {
+  font: inherit;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+a,
+button {
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+a:active,
+button:active {
+  transform: scale(0.98);
+}
+
+.article-body {
+  color: #e4e4e7;
+  font-size: 1.125rem;
+  line-height: 1.9;
+}
+
+.article-body h1 {
+  font-size: 2.25rem;
+  line-height: 1.15;
+  font-weight: 900;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  color: white;
+}
+
+.article-body h2 {
+  font-size: 1.875rem;
+  line-height: 1.2;
+  font-weight: 900;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  color: white;
+}
+
+.article-body h3 {
+  font-size: 1.5rem;
+  line-height: 1.25;
+  font-weight: 900;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: white;
+}
+
+.article-body p {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.article-body strong {
+  color: white;
+  font-weight: 900;
+}
+
+.article-body u {
+  text-decoration-color: #10b981;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.article-body em {
+  color: #d4d4d8;
+}
+
+.article-body ul,
+.article-body ol {
+  margin: 1rem 0 1rem 1.5rem;
+  padding-left: 1rem;
+}
+
+.article-body ul {
+  list-style-type: disc;
+}
+
+.article-body ol {
+  list-style-type: decimal;
+}
+
+.article-body blockquote {
+  margin: 1.5rem 0;
+  border-left: 4px solid #10b981;
+  background: #18181b;
+  padding: 1rem 1.25rem;
+  border-radius: 1rem;
+  color: #d4d4d8;
+}
+
+.article-body a {
+  color: #34d399;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.article-body img {
+  margin: 1.5rem auto;
+  max-width: 100%;
+  border-radius: 1.5rem;
+  border: 1px solid #27272a;
 }
