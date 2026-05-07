@@ -12,7 +12,7 @@ export default function AdminSyncButton({ leagueId }: { leagueId: string }) {
         setMessage('')
 
         try {
-            const res = await fetch(`/api/leagues/${leagueId}/sync`, {
+            const res = await fetch(`/api/league/${leagueId}/sync`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -36,7 +36,8 @@ export default function AdminSyncButton({ leagueId }: { leagueId: string }) {
 
             setMessage(
                 `Synced ${json.teamsSynced} teams, ${json.matchupsSynced} matchup rows, ${json.transactionsSynced || 0
-                } transactions. ${playerText}`
+                } transactions, and ${json.pointProfilesSynced || 0
+                } team scoring profiles. ${playerText}`
             )
 
             window.location.reload()

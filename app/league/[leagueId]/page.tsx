@@ -2,6 +2,7 @@ import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import LeagueWeekSelector from '@/components/LeagueWeekSelector'
 import TransactionCard from '@/components/TransactionCard'
+import MostRecentTransactionPanel from '@/components/MostRecentTransactionsPanel'
 import { createClient } from '@/lib/supabase/server'
 import { isLeagueAdmin } from '@/lib/permissions'
 import {
@@ -175,6 +176,8 @@ export default async function LeaguePage({
     userId: user?.id,
   })
 
+  const showProjectedWinChances = shouldShowProjectedWinChances(league?.status)
+
   const groupedMatchups =
     matchups?.reduce((acc: Record<string, any[]>, matchup: any) => {
       const key =
@@ -199,7 +202,6 @@ export default async function LeaguePage({
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
       <Navbar />
-
       <section className="border-b border-zinc-800 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.25),_transparent_35%),linear-gradient(to_bottom,_#064e3b,_#09090b)] px-4 py-12">
         <div className="mx-auto max-w-7xl">
           <p className="text-sm font-black uppercase tracking-[0.35em] text-emerald-300">
@@ -346,12 +348,30 @@ export default async function LeaguePage({
 
             {featuredTeams ? (
               <div className="mt-6">
-                <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-center">
-                  <FeaturedTeam team={featuredTeams[0]} leagueId={leagueId} />
+                {showProjectedWinChances && featuredTeams[0] && featuredTeams[1] && (
+                  <FeaturedWinChanceOverlay
+                    firstTeam={featuredTeams[0]}
+                    secondTeam={featuredTeams[1]}
+                    teamByRosterId={teamByRosterId}
+                  />
+                )}
+
+                <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-center">
+                  <FeaturedTeam
+                    team={featuredTeams[0]}
+                    leagueId={leagueId}
+                    selectedSeason={selectedSeason}
+                  />
+
                   <div className="text-center text-xl font-black text-zinc-500">
                     VS
                   </div>
-                  <FeaturedTeam team={featuredTeams[1]} leagueId={leagueId} />
+
+                  <FeaturedTeam
+                    team={featuredTeams[1]}
+                    leagueId={leagueId}
+                    selectedSeason={selectedSeason}
+                  />
                 </div>
 
                 {featured?.description && (
@@ -395,6 +415,8 @@ export default async function LeaguePage({
                     teams={teams}
                     leagueId={leagueId}
                     selectedSeason={selectedSeason}
+                    teamByRosterId={teamByRosterId}
+                    showProjectedWinChances={showProjectedWinChances}
                   />
                 ))}
 
@@ -512,32 +534,13 @@ export default async function LeaguePage({
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-zinc-800 bg-zinc-900 p-6">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-3xl font-black">Most Recent Transaction</h2>
-
-              <Link
-                href={`/league/${leagueId}/transactions?season=${selectedSeason}`}
-                className="text-sm font-bold text-emerald-400 hover:text-emerald-300"
-              >
-                View all →
-              </Link>
-            </div>
-
-            <div className="mt-5">
-              {mostRecentTransaction ? (
-                <TransactionCard
-                  transaction={mostRecentTransaction}
-                  sleeperPlayers={sleeperPlayers}
-                  teamByRosterId={teamByRosterId}
-                />
-              ) : (
-                <p className="text-zinc-400">
-                  No transactions synced for this season.
-                </p>
-              )}
-            </div>
-          </section>
+          <MostRecentTransactionPanel
+            leagueId={leagueId}
+            selectedSeason={selectedSeason}
+            initialTransaction={mostRecentTransaction || null}
+            initialPlayers={sleeperPlayers}
+            initialTeams={teams || []}
+          />
 
           <section className="rounded-[2rem] border border-zinc-800 bg-zinc-900 p-6">
             <h2 className="text-3xl font-black">Standings</h2>
@@ -607,14 +610,16 @@ function StatCard({
 function FeaturedTeam({
   team,
   leagueId,
+  selectedSeason,
 }: {
   team: any
   leagueId: string
+  selectedSeason: string
 }) {
   return (
     <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5 text-center">
       <Link
-        href={`/league/${leagueId}/teams/${team?.sleeper_roster_id}`}
+        href={`/league/${leagueId}/teams/${team?.sleeper_roster_id}?season=${selectedSeason}`}
         className="text-xl font-black hover:text-emerald-400"
       >
         {team?.team_name || 'Unknown Team'}
@@ -636,17 +641,47 @@ function MatchupCard({
   teams,
   leagueId,
   selectedSeason,
+  teamByRosterId,
+  showProjectedWinChances,
 }: {
   matchupId: string
   teams: any[]
   leagueId: string
   selectedSeason: string
+  teamByRosterId: Map<number, any>
+  showProjectedWinChances: boolean
 }) {
   const first = teams[0]
   const second = teams[1]
 
+  const firstProfile = first
+    ? teamByRosterId.get(Number(first.sleeper_roster_id))
+    : null
+
+  const secondProfile = second
+    ? teamByRosterId.get(Number(second.sleeper_roster_id))
+    : null
+
+  const prediction =
+    firstProfile && secondProfile
+      ? calculateWinChances(firstProfile, secondProfile)
+      : null
+
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+    <div className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+      {showProjectedWinChances && prediction && (
+        <div className="mb-4 grid overflow-hidden rounded-2xl border border-zinc-800 md:grid-cols-2">
+          <WinChanceOverlay
+            label={first?.team_name || 'Team A'}
+            chance={prediction.firstChance}
+          />
+          <WinChanceOverlay
+            label={second?.team_name || 'Team B'}
+            chance={prediction.secondChance}
+          />
+        </div>
+      )}
+
       <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
         Matchup {matchupId}
       </p>
@@ -667,6 +702,12 @@ function MatchupCard({
         />
       ) : (
         <p className="text-sm text-zinc-500">No opponent found</p>
+      )}
+
+      {showProjectedWinChances && prediction && (
+        <p className="mt-4 text-xs leading-5 text-zinc-500">
+          Projected using last season average points/week and weekly volatility.
+        </p>
       )}
     </div>
   )
@@ -707,4 +748,145 @@ function stripHtml(html: string) {
 
 function formatDateTime(dateString: string) {
   return new Date(dateString).toISOString().replace('T', ' ').slice(0, 16)
+}
+
+function WinChanceOverlay({
+  label,
+  chance,
+}: {
+  label: string
+  chance: number
+}) {
+  const isFavored = chance >= 50
+
+  return (
+    <div
+      className={`p-3 ${isFavored
+        ? 'bg-emerald-500/15 text-emerald-300'
+        : 'bg-red-500/10 text-red-300'
+        }`}
+    >
+      <p className="truncate text-xs font-black uppercase tracking-[0.2em]">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-black">{chance.toFixed(1)}%</p>
+      <p className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-70">
+        Win chance
+      </p>
+    </div>
+  )
+}
+
+function calculateWinChances(firstTeam: any, secondTeam: any) {
+  const firstAvg = Number(firstTeam.avg_points_per_week)
+  const secondAvg = Number(secondTeam.avg_points_per_week)
+
+  const firstSd = Math.max(Number(firstTeam.points_std_dev || 0), 1)
+  const secondSd = Math.max(Number(secondTeam.points_std_dev || 0), 1)
+
+  if (!Number.isFinite(firstAvg) || !Number.isFinite(secondAvg)) {
+    return null
+  }
+
+  const combinedSd = Math.sqrt(firstSd ** 2 + secondSd ** 2)
+
+  if (!combinedSd || !Number.isFinite(combinedSd)) {
+    return null
+  }
+
+  const z = (firstAvg - secondAvg) / combinedSd
+  const firstChance = normalCdf(z) * 100
+  const secondChance = 100 - firstChance
+
+  return {
+    firstChance,
+    secondChance,
+  }
+}
+
+function normalCdf(z: number) {
+  return 0.5 * (1 + erf(z / Math.sqrt(2)))
+}
+
+function erf(x: number) {
+  const sign = x >= 0 ? 1 : -1
+  const absX = Math.abs(x)
+
+  const a1 = 0.254829592
+  const a2 = -0.284496736
+  const a3 = 1.421413741
+  const a4 = -1.453152027
+  const a5 = 1.061405429
+  const p = 0.3275911
+
+  const t = 1 / (1 + p * absX)
+
+  const y =
+    1 -
+    (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) *
+      t *
+      Math.exp(-absX * absX))
+
+  return sign * y
+}
+
+function FeaturedWinChanceOverlay({
+  firstTeam,
+  secondTeam,
+  teamByRosterId,
+}: {
+  firstTeam: any
+  secondTeam: any
+  teamByRosterId: Map<number, any>
+}) {
+  const firstProfile = teamByRosterId.get(Number(firstTeam.sleeper_roster_id))
+  const secondProfile = teamByRosterId.get(Number(secondTeam.sleeper_roster_id))
+
+  const prediction =
+    firstProfile && secondProfile
+      ? calculateWinChances(firstProfile, secondProfile)
+      : null
+
+  if (!prediction) return null
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950">
+      <div className="grid md:grid-cols-2">
+        <WinChanceOverlay
+          label={firstTeam?.team_name || 'Team A'}
+          chance={prediction.firstChance}
+        />
+
+        <WinChanceOverlay
+          label={secondTeam?.team_name || 'Team B'}
+          chance={prediction.secondChance}
+        />
+      </div>
+
+      <div className="border-t border-zinc-800 px-4 py-2">
+        <p className="text-xs text-zinc-500">
+          Projected using last season average points/week and weekly volatility.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function shouldShowProjectedWinChances(leagueStatus?: string | null) {
+  const status = String(leagueStatus || '').toLowerCase()
+
+  // Sleeper usually treats non-active leagues as not in-season.
+  // For your use case, show projections all offseason.
+  const isInSeason = status === 'in_season'
+
+  if (!isInSeason) {
+    return true
+  }
+
+  const day = new Date().getDay()
+
+  // Sunday = 0, Monday = 1, Tuesday = 2, ... Saturday = 6
+  const isTuesdayThroughSaturday = day >= 2 && day <= 6
+
+  return isTuesdayThroughSaturday
 }

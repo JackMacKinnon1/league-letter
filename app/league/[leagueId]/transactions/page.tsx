@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Navbar from '@/components/Navbar'
 import TransactionCard from '@/components/TransactionCard'
+import AutoTransactionSync from '@/components/AutoTransactionsSync'
 import TransactionFilters from '@/components/TransactionFilters'
 import { createClient } from '@/lib/supabase/server'
 
@@ -149,7 +150,7 @@ export default async function TransactionsPage({
     return (
         <main className="min-h-screen bg-zinc-950 text-white">
             <Navbar />
-
+            <AutoTransactionSync leagueId={leagueId} />
             <section className="border-b border-zinc-800 bg-gradient-to-b from-emerald-950/50 to-zinc-950 px-4 py-10">
                 <div className="mx-auto max-w-5xl">
                     <Link

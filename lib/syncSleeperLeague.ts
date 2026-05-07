@@ -464,6 +464,106 @@ async function syncPlayersIfNeeded({ supabase }: { supabase: any }) {
   }
 }
 
+async function syncTeamPointProfiles({
+  supabase,
+  appLeagueId,
+  currentSeason,
+}: {
+  supabase: any
+  appLeagueId: string
+  currentSeason: string
+}) {
+  const lastSeason = String(Number(currentSeason) - 1)
+
+  const { data: lastSeasonMatchups, error: matchupsError } = await supabase
+    .from('matchups')
+    .select('sleeper_roster_id, points, week')
+    .eq('league_id', appLeagueId)
+    .eq('season', lastSeason)
+    .not('points', 'is', null)
+
+  if (matchupsError) {
+    throw new Error(matchupsError.message)
+  }
+
+  const { data: lastSeasonTeams, error: lastSeasonTeamsError } = await supabase
+    .from('team_season_stats')
+    .select('sleeper_roster_id, sleeper_owner_id, team_name, season')
+    .eq('league_id', appLeagueId)
+    .eq('season', lastSeason)
+
+  if (lastSeasonTeamsError) {
+    throw new Error(lastSeasonTeamsError.message)
+  }
+
+  const ownerIdByLastSeasonRosterId = new Map<number, string>()
+
+  for (const team of lastSeasonTeams || []) {
+    if (!team.sleeper_owner_id) continue
+
+    ownerIdByLastSeasonRosterId.set(
+      Number(team.sleeper_roster_id),
+      String(team.sleeper_owner_id)
+    )
+  }
+
+  const scoresByOwnerId = new Map<string, number[]>()
+
+  for (const row of lastSeasonMatchups || []) {
+    const lastSeasonRosterId = Number(row.sleeper_roster_id)
+    const ownerId = ownerIdByLastSeasonRosterId.get(lastSeasonRosterId)
+
+    if (!ownerId) continue
+
+    const points = Number(row.points || 0)
+
+    if (!scoresByOwnerId.has(ownerId)) {
+      scoresByOwnerId.set(ownerId, [])
+    }
+
+    scoresByOwnerId.get(ownerId)?.push(points)
+  }
+
+  let profilesSynced = 0
+
+  for (const [ownerId, scores] of scoresByOwnerId.entries()) {
+    if (!scores.length) continue
+
+    const average =
+      scores.reduce((sum, score) => sum + score, 0) / scores.length
+
+    const variance =
+      scores.length > 1
+        ? scores.reduce((sum, score) => {
+            return sum + Math.pow(score - average, 2)
+          }, 0) /
+          (scores.length - 1)
+        : 0
+
+    const standardDeviation = Math.sqrt(variance)
+
+    const { error: updateError } = await supabase
+      .from('teams')
+      .update({
+        avg_points_per_week: average,
+        points_std_dev: standardDeviation,
+        points_profile_season: lastSeason,
+        points_profile_weeks: scores.length,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('league_id', appLeagueId)
+      .eq('sleeper_owner_id', ownerId)
+
+    if (updateError) {
+      throw new Error(updateError.message)
+    }
+
+    profilesSynced += 1
+  }
+
+  return profilesSynced
+}
+
 export async function syncSleeperLeagueData({
   supabase,
   leagueId,
@@ -562,6 +662,12 @@ export async function syncSleeperLeagueData({
     sleeperLeagueId,
   })
 
+  const pointProfilesSynced = await syncTeamPointProfiles({
+    supabase,
+    appLeagueId: leagueId,
+    currentSeason: sleeperLeague.season,
+  })
+
   const transactionsSynced = await syncHistoricalTransactions({
     supabase,
     appLeagueId: leagueId,
@@ -585,6 +691,7 @@ export async function syncSleeperLeagueData({
     transactionsSynced,
     seasonsSynced,
     winnersSynced,
+    pointProfilesSynced,
     playersSynced: playerSyncResult.playersSynced,
     playersSkipped: playerSyncResult.playersSkipped,
     playersLastSyncedAt: playerSyncResult.playersLastSyncedAt,

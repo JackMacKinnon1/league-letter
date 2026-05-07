@@ -27,6 +27,10 @@ export default async function Navbar() {
         <nav className="flex items-center gap-4 text-sm font-semibold text-zinc-300">
           {user ? (
             <>
+              <Link href="/dynasty-rankings" className="hover:text-emerald-400">
+                Dynasty Rankings
+              </Link>
+              
               <Link href="/dashboard" className="hover:text-white">
                 Dashboard
               </Link>

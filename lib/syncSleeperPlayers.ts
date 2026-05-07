@@ -10,6 +10,7 @@ export async function syncSleeperPlayers({
   const rows = Object.entries(sleeperPlayers).map(([playerId, player]: any) => {
     const firstName = player.first_name || ''
     const lastName = player.last_name || ''
+
     const fullName =
       player.full_name ||
       `${firstName} ${lastName}`.trim() ||
@@ -18,6 +19,7 @@ export async function syncSleeperPlayers({
 
     return {
       id: playerId,
+      sleeper_player_id: playerId,
       full_name: fullName,
       first_name: firstName || null,
       last_name: lastName || null,
