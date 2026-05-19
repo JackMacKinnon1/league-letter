@@ -22,6 +22,28 @@ function getTeamName(user?: SleeperUser, fallback?: string) {
   )
 }
 
+
+function getDivisionName(sleeperLeague: any, divisionId?: number | string | null) {
+  if (divisionId === null || divisionId === undefined || divisionId === '') {
+    return null
+  }
+
+  const metadata = sleeperLeague?.metadata || {}
+  const oneBasedId = Number(divisionId) + 1
+  const possibleKeys = [
+    `division_${divisionId}`,
+    `division_${oneBasedId}`,
+    `division_${divisionId}_name`,
+    `division_${oneBasedId}_name`,
+  ]
+
+  for (const key of possibleKeys) {
+    if (metadata[key]) return String(metadata[key])
+  }
+
+  return `Division ${Number(divisionId) === 0 ? 1 : Number(divisionId)}`
+}
+
 async function syncTeamSeasonStats({
   supabase,
   appLeagueId,
@@ -64,6 +86,11 @@ async function syncTeamSeasonStats({
           wins: roster.settings?.wins || 0,
           losses: roster.settings?.losses || 0,
           ties: roster.settings?.ties || 0,
+          division_id: roster.settings?.division ?? null,
+          division_name: getDivisionName(
+            sleeperLeague,
+            roster.settings?.division ?? null
+          ),
           points_for: sleeperFantasyPoints(roster.settings),
           points_against: sleeperFantasyPointsAgainst(roster.settings),
           players: roster.players || [],
@@ -611,6 +638,11 @@ export async function syncSleeperLeagueData({
       wins: roster.settings?.wins || 0,
       losses: roster.settings?.losses || 0,
       ties: roster.settings?.ties || 0,
+      division_id: roster.settings?.division ?? null,
+      division_name: getDivisionName(
+        sleeperLeague,
+        roster.settings?.division ?? null
+      ),
       points_for: sleeperFantasyPoints(roster.settings),
       points_against: sleeperFantasyPointsAgainst(roster.settings),
       players: roster.players || [],
@@ -641,6 +673,7 @@ export async function syncSleeperLeagueData({
       status: sleeperLeague.status,
       sport: sleeperLeague.sport,
       total_rosters: sleeperLeague.total_rosters,
+      division_count: sleeperLeague.settings?.divisions || null,
       current_week: selectedWeek,
       last_synced_at: new Date().toISOString(),
     })

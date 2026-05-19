@@ -225,7 +225,7 @@ export default async function LeaguePage({
                 href={`/league/${leagueId}/winners`}
                 className="rounded-2xl border border-white/20 bg-white/10 px-5 py-3 font-black backdrop-blur transition hover:bg-white/20"
               >
-                Previous Winners
+                Trophy Room
               </Link>
               <Link
                 href={`/league/${leagueId}/drafts`}

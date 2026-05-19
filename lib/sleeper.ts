@@ -9,9 +9,13 @@ export type SleeperLeague = {
   sport: string
   total_rosters: number
   previous_league_id?: string | null
+  metadata?: {
+    [key: string]: unknown
+  }
   settings?: {
     week?: number
     playoff_week_start?: number
+    divisions?: number
     [key: string]: unknown
   }
 }
@@ -41,6 +45,7 @@ export type SleeperRoster = {
     fpts_decimal?: number
     fpts_against?: number
     fpts_against_decimal?: number
+    division?: number | string
     [key: string]: unknown
   }
 }

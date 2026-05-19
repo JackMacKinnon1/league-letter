@@ -2,6 +2,17 @@ import Papa from 'papaparse'
 
 type CsvRow = Record<string, any>
 
+type PlayerAgeInput = Record<string, number | null | undefined>
+
+type RawPlayer = {
+  playerName: string
+  playerKey: string
+  team: string | null
+  position: string | null
+  age: number | null
+  metrics: Record<string, number | null>
+}
+
 type YearlyRow = {
   player_key: string
   player_name: string
@@ -22,99 +33,80 @@ type YearlyRow = {
   updated_at: string
 }
 
-const CATEGORY_WEIGHTS = {
-  Production: 0.12,
-  Volume: 0.18,
-  Efficiency: 0.22,
-  AfterCatch: 0.08,
-  PFF: 0.3,
-  Age: 0.1,
-}
-
-const FEATURE_GROUPS: Record<string, Record<string, number>> = {
-  Production: {
-    TD: 0.25,
-    Receptions: 0.3,
-    Yards: 0.45,
-  },
-  Volume: {
-    Targets: 0.35,
-    TargetShare: 0.3,
-    TPRR: 0.2,
-    FirstReadPct: 0.15,
-  },
-  Efficiency: {
-    YPRR: 0.32,
-    YPT: 0.18,
-    YPR: 0.1,
-    YPTOE: 0.4,
-  },
-  AfterCatch: {
-    YAC_REC: 0.36,
-    YACO_REC: 0.34,
-    MTF_REC: 0.3,
-  },
-  PFF: {
-    PFF_RECV_Grade: 1,
-  },
-  Age: {
-    AgeSeason: 1,
-  },
-}
-
-const RECENCY_WEIGHTS: Record<string, number> = {
-  '0': 0.4,
-  '1': 0.25,
-  '2': 0.18,
-  '3': 0.1,
-  '4': 0.08,
+const SEASON_DECAY_WEIGHTS: Record<string, number> = {
+  '0': 0.55,
+  '1': 0.3,
+  '2': 0.15,
 }
 
 const FINAL_BLEND = {
-  fiveYearWeightedScore: 0.58,
-  recentSeasonScore: 0.07,
-  consistencyScore: 0.06,
-  currentAgeScore: 0.17,
-  trackRecordScore: 0.12,
+  productionScore: 0.55,
+  upsideScore: 0.45,
+}
+
+const PRODUCTION_WEIGHTS: Record<string, number> = {
+  XFP: 0.3,
+  Yards: 0.25,
+  Targets: 0.18,
+  Receptions: 0.12,
+  TeamYardsShare: 0.15,
+}
+
+// First-read target % intentionally removed.
+// The old first-read weight is moved into PFF receiving grade.
+const UPSIDE_WEIGHTS: Record<string, number> = {
+  PFF_RECV_Grade: 0.3,
+  YPRR: 0.23,
+  TPRR: 0.15,
+  TargetShare: 0.1,
+  AgeUpside: 0.22,
 }
 
 const FPD_COLUMN_ALIASES: Record<string, string[]> = {
   player_name: ['player', 'player name', 'name', 'full name'],
   team: ['team', 'tm'],
   position: ['pos', 'position'],
-  age: ['age', 'ageseason'],
 
-  TD: ['td', 'touchdowns'],
+  XFP: ['xfp', 'expected fantasy points'],
   Receptions: ['rec', 'receptions'],
-  Yards: ['yds', 'yards'],
+  Yards: ['yds', 'yards', 'receiving yards'],
   Targets: ['tgt', 'targets'],
   TargetShare: ['tgt %', 'tgt%', 'target share', 'targetshare'],
   TPRR: ['tprr'],
-  FirstReadPct: ['1read %', '1read%', 'first read %', 'firstreadpct'],
   YPRR: ['yprr'],
-  YPT: ['ypt'],
-  YPR: ['ypr'],
-  YPTOE: ['yptoe'],
-  YAC_REC: ['yac/rec', 'yac_rec'],
-  YACO_REC: ['yaco/rec', 'yaco_rec'],
-  MTF_REC: ['mtf/rec', 'mtf_rec'],
+  TeamYardsShare: [
+    'tm yds %',
+    'tm yds%',
+    'team yds %',
+    'team yards %',
+    'team receiving yards share',
+    'tm receiving yards share',
+  ],
 }
 
 const PFF_COLUMN_ALIASES: Record<string, string[]> = {
   player_name: ['player', 'player name', 'name', 'full name'],
   team: ['team', 'tm'],
   position: ['pos', 'position'],
-  PFF_RECV_Grade: ['grades_pass_route', 'pass route grade', 'receiving grade'],
+  PFF_RECV_Grade: [
+    'grades_pass_route',
+    'receiving grade',
+    'recv grade',
+    'pass route grade',
+    'pff receiving grade',
+  ],
 }
 
 export function buildWrValuesFromCsvs({
   season,
   fpdCsvText,
   pffCsvText,
+  playerAgesByKey = {},
 }: {
   season: string
   fpdCsvText: string
   pffCsvText: string
+  playerAgesByKey?: PlayerAgeInput
 }) {
   const fpdRows = parseCsv(fpdCsvText)
   const pffRows = parseCsv(pffCsvText)
@@ -128,7 +120,7 @@ export function buildWrValuesFromCsvs({
 
     if (!playerName) continue
 
-    pffByName.set(normalizeName(playerName), row)
+    pffByName.set(normalizePlayerKey(playerName), row)
 
     if (team) {
       pffByNameTeam.set(makeNameTeamKey(playerName, team), row)
@@ -138,6 +130,7 @@ export function buildWrValuesFromCsvs({
   const rawPlayers = fpdRows
     .map((row) => {
       const playerName = getString(row, FPD_COLUMN_ALIASES.player_name)
+      const playerKey = normalizePlayerKey(playerName)
       const team = getString(row, FPD_COLUMN_ALIASES.team)
       const position = getString(row, FPD_COLUMN_ALIASES.position)
 
@@ -150,78 +143,73 @@ export function buildWrValuesFromCsvs({
       const pffRow =
         team && pffByNameTeam.get(makeNameTeamKey(playerName, team))
           ? pffByNameTeam.get(makeNameTeamKey(playerName, team))
-          : pffByName.get(normalizeName(playerName))
+          : pffByName.get(playerKey)
+
+      const ageFromPlayersTable = getAgeFromMap(playerAgesByKey, playerKey)
 
       const metrics = {
-        TD: getNumber(row, FPD_COLUMN_ALIASES.TD),
+        XFP: getNumber(row, FPD_COLUMN_ALIASES.XFP),
         Receptions: getNumber(row, FPD_COLUMN_ALIASES.Receptions),
         Yards: getNumber(row, FPD_COLUMN_ALIASES.Yards),
         Targets: getNumber(row, FPD_COLUMN_ALIASES.Targets),
         TargetShare: getNumber(row, FPD_COLUMN_ALIASES.TargetShare),
         TPRR: getNumber(row, FPD_COLUMN_ALIASES.TPRR),
-        FirstReadPct: getNumber(row, FPD_COLUMN_ALIASES.FirstReadPct),
         YPRR: getNumber(row, FPD_COLUMN_ALIASES.YPRR),
-        YPT: getNumber(row, FPD_COLUMN_ALIASES.YPT),
-        YPR: getNumber(row, FPD_COLUMN_ALIASES.YPR),
-        YPTOE: getNumber(row, FPD_COLUMN_ALIASES.YPTOE),
-        YAC_REC: getNumber(row, FPD_COLUMN_ALIASES.YAC_REC),
-        YACO_REC: getNumber(row, FPD_COLUMN_ALIASES.YACO_REC),
-        MTF_REC: getNumber(row, FPD_COLUMN_ALIASES.MTF_REC),
+        TeamYardsShare: getNumber(row, FPD_COLUMN_ALIASES.TeamYardsShare),
         PFF_RECV_Grade: pffRow
           ? getNumber(pffRow, PFF_COLUMN_ALIASES.PFF_RECV_Grade)
           : null,
-        AgeSeason: getNumber(row, FPD_COLUMN_ALIASES.age),
+        Age: ageFromPlayersTable,
       }
 
       return {
         playerName,
+        playerKey,
         team: team || null,
         position: position || 'WR',
-        age: metrics.AgeSeason,
+        age: ageFromPlayersTable,
         metrics,
       }
     })
-    .filter(Boolean) as Array<{
-    playerName: string
-    team: string | null
-    position: string | null
-    age: number | null
-    metrics: Record<string, number | null>
-  }>
+    .filter(Boolean) as RawPlayer[]
 
-  const percentileScores = buildFeaturePercentileScores(rawPlayers)
+  const zScores = buildFeatureZScores(rawPlayers)
 
   const yearlyRows: YearlyRow[] = rawPlayers.map((player) => {
     const featureScores: Record<string, number> = {}
 
     for (const feature of Object.keys(player.metrics)) {
-      if (feature === 'AgeSeason') {
-        featureScores[feature] = calculateAgeScore(player.metrics.AgeSeason)
-      } else {
-        featureScores[feature] =
-          percentileScores.get(`${player.playerName}-${feature}`) ?? 35
+      if (feature === 'Age') {
+        featureScores.AgeUpside = calculateAgeUpsideScore(player.age)
+        featureScores.AgeMultiplier = calculateAgeMultiplier(player.age) * 100
+        continue
       }
+
+      featureScores[feature] = zScores.get(`${player.playerKey}-${feature}`) ?? 50
     }
 
-    const categoryScores = {
-      Production: calculateGroupScore(featureScores, FEATURE_GROUPS.Production),
-      Volume: calculateGroupScore(featureScores, FEATURE_GROUPS.Volume),
-      Efficiency: calculateGroupScore(featureScores, FEATURE_GROUPS.Efficiency),
-      AfterCatch: calculateGroupScore(featureScores, FEATURE_GROUPS.AfterCatch),
-      PFF: calculateGroupScore(featureScores, FEATURE_GROUPS.PFF),
-      Age: calculateGroupScore(featureScores, FEATURE_GROUPS.Age),
-    }
+    const productionScore = calculateWeightedScore(featureScores, PRODUCTION_WEIGHTS)
+    const upsideScore = calculateWeightedScore(featureScores, UPSIDE_WEIGHTS)
 
-    const seasonScore =
-      categoryScores.Production * CATEGORY_WEIGHTS.Production +
-      categoryScores.Volume * CATEGORY_WEIGHTS.Volume +
-      categoryScores.Efficiency * CATEGORY_WEIGHTS.Efficiency +
-      categoryScores.AfterCatch * CATEGORY_WEIGHTS.AfterCatch +
-      categoryScores.PFF * CATEGORY_WEIGHTS.PFF +
-      categoryScores.Age * CATEGORY_WEIGHTS.Age
+    const pffScore = featureScores.PFF_RECV_Grade ?? 50
+    const efficiencyScore = calculateWeightedScore(featureScores, {
+      YPRR: 0.6,
+      TPRR: 0.4,
+    })
+    const volumeScore = calculateWeightedScore(featureScores, {
+      Targets: 0.55,
+      TargetShare: 0.45,
+    })
+    const ageScore = featureScores.AgeUpside ?? 50
+
+    const rawSeasonScore =
+      productionScore * FINAL_BLEND.productionScore +
+      upsideScore * FINAL_BLEND.upsideScore
+
+    const seasonScore = rawSeasonScore * calculateAgeMultiplier(player.age)
 
     return {
-      player_key: normalizeName(player.playerName),
+      player_key: player.playerKey,
       player_name: player.playerName,
       season,
       team: player.team,
@@ -229,13 +217,20 @@ export function buildWrValuesFromCsvs({
       age: player.age,
       raw_metrics: player.metrics,
       feature_scores: featureScores,
-      category_scores: categoryScores,
-      production_score: round2(categoryScores.Production),
-      volume_score: round2(categoryScores.Volume),
-      efficiency_score: round2(categoryScores.Efficiency),
-      after_catch_score: round2(categoryScores.AfterCatch),
-      pff_score: round2(categoryScores.PFF),
-      age_score: round2(categoryScores.Age),
+      category_scores: {
+        Production: round2(productionScore),
+        Upside: round2(upsideScore),
+        PFF: round2(pffScore),
+        Efficiency: round2(efficiencyScore),
+        Volume: round2(volumeScore),
+        Age: round2(ageScore),
+      },
+      production_score: round2(productionScore),
+      volume_score: round2(volumeScore),
+      efficiency_score: round2(efficiencyScore),
+      after_catch_score: 0,
+      pff_score: round2(pffScore),
+      age_score: round2(ageScore),
       season_score: round2(seasonScore),
       updated_at: new Date().toISOString(),
     }
@@ -245,6 +240,8 @@ export function buildWrValuesFromCsvs({
     (row) => row.raw_metrics.PFF_RECV_Grade === null
   ).length
 
+  const missingAgeCount = yearlyRows.filter((row) => row.age === null).length
+
   return {
     yearlyRows,
     importSummary: {
@@ -252,6 +249,7 @@ export function buildWrValuesFromCsvs({
       pffRows: pffRows.length,
       wrRows: yearlyRows.length,
       unmatchedPffCount,
+      missingAgeCount,
     },
   }
 }
@@ -271,63 +269,67 @@ export function buildFiveYearPlayerValues(allSeasonRows: any[]) {
     ...allSeasonRows.map((row) => Number(row.season)).filter(Number.isFinite)
   )
 
-  const playerValues: any[] = []
+  const unscaledValues: any[] = []
 
   for (const [playerKey, rows] of rowsByPlayer.entries()) {
     const sortedRows = [...rows]
       .sort((a, b) => Number(b.season) - Number(a.season))
-      .slice(0, 5)
+      .slice(0, 3)
 
     if (!sortedRows.length) continue
 
     const latestRow = sortedRows[0]
 
-    let recencyTotal = 0
-    let recencyWeightUsed = 0
+    let productionTotal = 0
+    let upsideTotal = 0
+    let seasonTotal = 0
+    let weightUsed = 0
 
     for (const row of sortedRows) {
       const seasonsAgo = String(currentLatestSeason - Number(row.season))
-      const weight = RECENCY_WEIGHTS[seasonsAgo]
+      const weight = SEASON_DECAY_WEIGHTS[seasonsAgo]
 
       if (!weight) continue
 
-      recencyTotal += Number(row.season_score || 0) * weight
-      recencyWeightUsed += weight
+      const categoryScores = row.category_scores || {}
+
+      productionTotal += Number(categoryScores.Production || row.production_score || 0) * weight
+      upsideTotal += Number(categoryScores.Upside || row.efficiency_score || 0) * weight
+      seasonTotal += Number(row.season_score || 0) * weight
+      weightUsed += weight
     }
 
-    const fiveYearWeightedScore =
-      recencyWeightUsed > 0 ? recencyTotal / recencyWeightUsed : 35
+    const productionScore = weightUsed > 0 ? productionTotal / weightUsed : 50
+    const upsideScore = weightUsed > 0 ? upsideTotal / weightUsed : 50
+    const weightedSeasonScore = weightUsed > 0 ? seasonTotal / weightUsed : 50
 
-    const recentSeasonScore = Number(latestRow.season_score || 35)
-
-    const seasonScores = sortedRows.map((row) => Number(row.season_score || 35))
+    const seasonScores = sortedRows.map((row) => Number(row.season_score || 50))
     const sd = standardDeviation(seasonScores)
-
     const consistencyScore = clamp(100 - sd * 2, 0, 100)
     const currentAgeScore = Number(latestRow.age_score || 50)
-    const trackRecordScore = clamp((sortedRows.length / 5) * 100, 0, 100)
+    const trackRecordScore = clamp((sortedRows.length / 3) * 100, 0, 100)
 
-    const finalScore =
-      fiveYearWeightedScore * FINAL_BLEND.fiveYearWeightedScore +
-      recentSeasonScore * FINAL_BLEND.recentSeasonScore +
-      consistencyScore * FINAL_BLEND.consistencyScore +
-      currentAgeScore * FINAL_BLEND.currentAgeScore +
-      trackRecordScore * FINAL_BLEND.trackRecordScore
+    const rawFinalScore =
+      productionScore * FINAL_BLEND.productionScore +
+      upsideScore * FINAL_BLEND.upsideScore
 
-    playerValues.push({
+    unscaledValues.push({
       player_key: playerKey,
       player_name: latestRow.player_name,
       latest_team: latestRow.team,
       latest_position: latestRow.position,
-      final_score: round2(finalScore),
-      five_year_weighted_score: round2(fiveYearWeightedScore),
-      recent_season_score: round2(recentSeasonScore),
-      consistency_score: round2(consistencyScore),
-      current_age_score: round2(currentAgeScore),
-      track_record_score: round2(trackRecordScore),
+      raw_final_score: rawFinalScore,
+      weighted_season_score: weightedSeasonScore,
+      production_score: productionScore,
+      upside_score: upsideScore,
+      consistency_score: consistencyScore,
+      current_age_score: currentAgeScore,
+      track_record_score: trackRecordScore,
       seasons_used: sortedRows.map((row) => ({
         season: row.season,
         score: row.season_score,
+        production: row.category_scores?.Production ?? row.production_score,
+        upside: row.category_scores?.Upside,
         team: row.team,
       })),
       latest_season: latestRow.season,
@@ -335,7 +337,29 @@ export function buildFiveYearPlayerValues(allSeasonRows: any[]) {
     })
   }
 
-  return playerValues.sort((a, b) => b.final_score - a.final_score)
+  const finalScores = minMaxScale(
+    unscaledValues.map((player) => Number(player.raw_final_score || 0)),
+    0,
+    9999
+  )
+
+  return unscaledValues
+    .map((player, index) => ({
+      player_key: player.player_key,
+      player_name: player.player_name,
+      latest_team: player.latest_team,
+      latest_position: player.latest_position,
+      final_score: Math.round(finalScores[index]),
+      five_year_weighted_score: round2(player.weighted_season_score),
+      recent_season_score: round2(player.raw_final_score),
+      consistency_score: round2(player.consistency_score),
+      current_age_score: round2(player.current_age_score),
+      track_record_score: round2(player.track_record_score),
+      seasons_used: player.seasons_used,
+      latest_season: player.latest_season,
+      updated_at: player.updated_at,
+    }))
+    .sort((a, b) => b.final_score - a.final_score)
 }
 
 function parseCsv(csvText: string) {
@@ -348,55 +372,50 @@ function parseCsv(csvText: string) {
   return parsed.data || []
 }
 
-function buildFeaturePercentileScores(
-  players: Array<{
-    playerName: string
-    metrics: Record<string, number | null>
-  }>
-) {
+function buildFeatureZScores(players: RawPlayer[]) {
   const result = new Map<string, number>()
 
   const features = [
-    'TD',
+    'XFP',
     'Receptions',
     'Yards',
     'Targets',
     'TargetShare',
     'TPRR',
-    'FirstReadPct',
     'YPRR',
-    'YPT',
-    'YPR',
-    'YPTOE',
-    'YAC_REC',
-    'YACO_REC',
-    'MTF_REC',
+    'TeamYardsShare',
     'PFF_RECV_Grade',
   ]
 
   for (const feature of features) {
     const values = players
       .map((player) => ({
-        playerName: player.playerName,
+        playerKey: player.playerKey,
         value: player.metrics[feature],
       }))
       .filter((item) => item.value !== null && Number.isFinite(Number(item.value)))
-      .sort((a, b) => Number(a.value) - Number(b.value))
 
     if (!values.length) continue
 
-    for (let index = 0; index < values.length; index++) {
-      const percentile =
-        values.length === 1 ? 100 : (index / (values.length - 1)) * 100
+    const numbers = values.map((item) => Number(item.value))
+    const mean = numbers.reduce((sum, value) => sum + value, 0) / numbers.length
+    const sd = standardDeviation(numbers)
 
-      result.set(`${values[index].playerName}-${feature}`, round2(percentile))
+    for (const item of values) {
+      const z = sd > 0 ? (Number(item.value) - mean) / sd : 0
+      result.set(`${item.playerKey}-${feature}`, zScoreToScore(z))
     }
   }
 
   return result
 }
 
-function calculateGroupScore(
+function zScoreToScore(z: number) {
+  // Converts z-scores into a stable 0-100 model score centered around 50.
+  return round2(clamp(50 + z * 15, 0, 100))
+}
+
+function calculateWeightedScore(
   featureScores: Record<string, number>,
   weights: Record<string, number>
 ) {
@@ -412,21 +431,49 @@ function calculateGroupScore(
     weightUsed += weight
   }
 
-  if (!weightUsed) return 35
+  if (!weightUsed) return 50
 
   return total / weightUsed
 }
 
-function calculateAgeScore(age: number | null) {
-  if (!age || !Number.isFinite(age)) {
-    return 50
-  }
+function calculateAgeUpsideScore(age: number | null) {
+  if (!age || !Number.isFinite(age)) return 50
 
-  if (age < 28) {
-    return 100
-  }
+  if (age <= 22) return 100
+  if (age <= 24) return 92
+  if (age <= 26) return 82
+  if (age <= 28) return 70
+  if (age === 29) return 58
+  if (age === 30) return 48
+  if (age === 31) return 38
+  if (age === 32) return 30
+  if (age === 33) return 22
+  return 15
+}
 
-  return clamp(100 - (age - 28) * 10, 0, 100)
+function calculateAgeMultiplier(age: number | null) {
+  if (!age || !Number.isFinite(age)) return 1
+
+  if (age <= 22) return 1.2
+  if (age <= 24) return 1.15
+  if (age <= 26) return 1.05
+  if (age <= 28) return 1
+  if (age === 29) return 0.93
+  if (age === 30) return 0.86
+  if (age === 31) return 0.78
+  if (age === 32) return 0.7
+  if (age === 33) return 0.62
+  return 0.5
+}
+
+function getAgeFromMap(playerAgesByKey: PlayerAgeInput, playerKey: string) {
+  const age = playerAgesByKey[playerKey]
+
+  if (age === null || age === undefined) return null
+
+  const value = Number(age)
+
+  return Number.isFinite(value) ? value : null
 }
 
 function getString(row: CsvRow, aliases: string[]) {
@@ -468,14 +515,14 @@ function normalizeHeader(value: string) {
     .replace(/-/g, '')
 }
 
-function normalizeName(value: string) {
+export function normalizePlayerKey(value: string) {
   return String(value || '')
     .toLowerCase()
     .replace(/[^a-z0-9]/g, '')
 }
 
 function makeNameTeamKey(name: string, team: string) {
-  return `${normalizeName(name)}-${String(team || '').toUpperCase().trim()}`
+  return `${normalizePlayerKey(name)}-${String(team || '').toUpperCase().trim()}`
 }
 
 function standardDeviation(values: number[]) {
@@ -488,6 +535,20 @@ function standardDeviation(values: number[]) {
     (values.length - 1)
 
   return Math.sqrt(variance)
+}
+
+function minMaxScale(values: number[], minOut: number, maxOut: number) {
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) {
+    return values.map(() => (minOut + maxOut) / 2)
+  }
+
+  return values.map((value) => {
+    const scaled = ((value - min) / (max - min)) * (maxOut - minOut) + minOut
+    return clamp(scaled, minOut, maxOut)
+  })
 }
 
 function clamp(value: number, min: number, max: number) {

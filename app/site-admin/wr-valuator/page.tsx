@@ -1,124 +1,157 @@
-import Link from 'next/link'
-import Navbar from '@/components/Navbar'
-import WRValuatorUploader from '@/components/WRValuatorUploader'
-import { createClient } from '@/lib/supabase/server'
-import DynastyValuesSyncButton from '@/components/DynastyValuesSyncButton'
-import { redirect } from 'next/navigation'
+'use client'
 
-const SITE_ADMIN_EMAIL = 'mackinnonjack4@gmail.com'
+import { useState } from 'react'
+import { Upload } from 'lucide-react'
 
-export default async function WRValuatorAdminPage() {
-  const supabase = await createClient()
+export default function WRValuatorUploader() {
+  const [season, setSeason] = useState('2025')
+  const [fpdFile, setFpdFile] = useState<File | null>(null)
+  const [pffFile, setPffFile] = useState<File | null>(null)
+  const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<any>(null)
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  async function uploadFiles() {
+    setMessage('')
+    setResult(null)
 
-  if (!user) {
-    redirect('/login')
+    if (!season || !fpdFile || !pffFile) {
+      setMessage('Season, Fantasy Points CSV, and PFF CSV are required.')
+      return
+    }
+
+    setLoading(true)
+
+    const formData = new FormData()
+    formData.append('season', season)
+    formData.append('fpdFile', fpdFile)
+    formData.append('pffFile', pffFile)
+
+    const response = await fetch('/api/site-admin/wr-valuator/upload', {
+      method: 'POST',
+      body: formData,
+    })
+
+    const json = await response.json()
+
+    if (!response.ok) {
+      setMessage(json.error || 'Upload failed.')
+      setLoading(false)
+      return
+    }
+
+    setResult(json)
+    setMessage('WR values imported successfully.')
+    setLoading(false)
   }
-
-  if (user.email !== SITE_ADMIN_EMAIL) {
-    redirect('/dashboard')
-  }
-
-  const { data: latestValues } = await supabase
-    .from('wr_player_values')
-    .select('*')
-    .order('final_score', { ascending: false })
-    .limit(25)
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white">
-      <Navbar />
+    <section className="rounded-[2rem] border border-zinc-800 bg-zinc-900 p-6">
+      <div className="flex items-center gap-3">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500 text-zinc-950">
+          <Upload size={22} />
+        </div>
 
-      <section className="border-b border-zinc-800 bg-gradient-to-b from-emerald-950/50 to-zinc-950 px-4 py-10">
-        <div className="mx-auto max-w-7xl">
-          <Link href="/dashboard" className="text-sm font-bold text-zinc-400">
-            ← Back to dashboard
-          </Link>
-
-          <p className="mt-6 text-sm font-black uppercase tracking-[0.3em] text-emerald-400">
-            Site Admin
-          </p>
-
-          <h1 className="mt-3 text-5xl font-black">WR Valuator</h1>
-
-          <p className="mt-3 max-w-3xl text-zinc-400">
-            Upload Fantasy Points Data and PFF CSV files, calculate yearly WR
-            scores, and store 5-year weighted player values.
+        <div>
+          <h2 className="text-3xl font-black">WR CSV Uploader</h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            Upload one season at a time. The model uses FPDS + PFF and pulls age
+            from your Supabase players table.
           </p>
         </div>
-      </section>
+      </div>
 
-      <section className="mx-auto max-w-7xl space-y-6 px-4 py-8">
-        <DynastyValuesSyncButton />
-        <WRValuatorUploader />
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <div>
+          <label className="text-sm font-bold text-zinc-400">Season</label>
+          <input
+            value={season}
+            onChange={(event) => setSeason(event.target.value)}
+            className="mt-2 w-full rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3 outline-none focus:border-emerald-500"
+            placeholder="2025"
+          />
+        </div>
 
-        <section className="rounded-[2rem] border border-zinc-800 bg-zinc-900 p-6">
-          <h2 className="text-3xl font-black">Current Top WR Values</h2>
+        <div>
+          <label className="text-sm font-bold text-zinc-400">
+            Fantasy Points Data CSV
+          </label>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(event) => setFpdFile(event.target.files?.[0] || null)}
+            className="mt-2 w-full rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm"
+          />
+        </div>
 
-          <div className="mt-5 overflow-x-auto">
-            <table className="w-full min-w-[800px] border-collapse text-left">
-              <thead>
-                <tr className="border-b border-zinc-800 text-xs uppercase tracking-[0.2em] text-zinc-500">
-                  <th className="py-3 pr-4">Rank</th>
-                  <th className="py-3 pr-4">Player</th>
-                  <th className="py-3 pr-4">Team</th>
-                  <th className="py-3 pr-4">Final</th>
-                  <th className="py-3 pr-4">5-Year</th>
-                  <th className="py-3 pr-4">Recent</th>
-                  <th className="py-3 pr-4">Consistency</th>
-                  <th className="py-3 pr-4">Age</th>
-                  <th className="py-3 pr-4">Track</th>
-                </tr>
-              </thead>
+        <div>
+          <label className="text-sm font-bold text-zinc-400">PFF CSV</label>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(event) => setPffFile(event.target.files?.[0] || null)}
+            className="mt-2 w-full rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm"
+          />
+        </div>
+      </div>
 
-              <tbody>
-                {(latestValues || []).map((player: any, index: number) => (
-                  <tr key={player.id} className="border-b border-zinc-800">
-                    <td className="py-3 pr-4 font-black text-emerald-400">
-                      #{index + 1}
-                    </td>
-                    <td className="py-3 pr-4 font-black">
-                      {player.player_name}
-                    </td>
-                    <td className="py-3 pr-4 text-zinc-400">
-                      {player.latest_team || '—'}
-                    </td>
-                    <td className="py-3 pr-4 font-black">
-                      {Number(player.final_score || 0).toFixed(2)}
-                    </td>
-                    <td className="py-3 pr-4 text-zinc-400">
-                      {Number(player.five_year_weighted_score || 0).toFixed(2)}
-                    </td>
-                    <td className="py-3 pr-4 text-zinc-400">
-                      {Number(player.recent_season_score || 0).toFixed(2)}
-                    </td>
-                    <td className="py-3 pr-4 text-zinc-400">
-                      {Number(player.consistency_score || 0).toFixed(2)}
-                    </td>
-                    <td className="py-3 pr-4 text-zinc-400">
-                      {Number(player.current_age_score || 0).toFixed(2)}
-                    </td>
-                    <td className="py-3 pr-4 text-zinc-400">
-                      {Number(player.track_record_score || 0).toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
+      <button
+        onClick={uploadFiles}
+        disabled={loading}
+        className="mt-5 w-full rounded-2xl bg-emerald-500 py-3 font-black text-zinc-950 hover:bg-emerald-400 disabled:opacity-60"
+      >
+        {loading ? 'Importing...' : 'Import WR Values'}
+      </button>
 
-                {!latestValues?.length && (
-                  <tr>
-                    <td colSpan={9} className="py-6 text-zinc-400">
-                      No WR values uploaded yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </section>
-    </main>
+      {message && (
+        <div className="mt-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
+          {message}
+        </div>
+      )}
+
+      {result && (
+        <div className="mt-4 grid gap-3 md:grid-cols-5">
+          <Stat label="Season" value={result.season} />
+          <Stat label="WR Rows Stored" value={result.yearlyRowsStored} />
+          <Stat label="Player Values Stored" value={result.playerValuesStored} />
+          <Stat
+            label="Unmatched PFF"
+            value={result.importSummary?.unmatchedPffCount || 0}
+          />
+          <Stat
+            label="Missing Age"
+            value={result.importSummary?.missingAgeCount || 0}
+          />
+        </div>
+      )}
+
+      <div className="mt-6 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+        <h3 className="text-xl font-black">Expected CSV Columns</h3>
+
+        <p className="mt-3 text-sm leading-7 text-zinc-400">
+          Fantasy Points Data: XFP, REC, YDS, TGT, TGT %, TPRR, YPRR, TM YDS %.
+        </p>
+
+        <p className="mt-2 text-sm leading-7 text-zinc-400">
+          PFF: grades_pass_route.
+        </p>
+
+        <p className="mt-2 text-sm leading-7 text-zinc-500">
+          Age is no longer taken from the CSV. It is matched from the Supabase
+          players table using player name and the age column.
+        </p>
+      </div>
+    </section>
+  )
+}
+
+function Stat({ label, value }: { label: string; value: any }) {
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+      <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-400">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-black">{String(value)}</p>
+    </div>
   )
 }

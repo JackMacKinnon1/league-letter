@@ -12,7 +12,7 @@ export default function LoadLeagueForm() {
     setMessage('')
 
     try {
-      const res = await fetch('/api/leagues/load', {
+      const res = await fetch('/api/league/load', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

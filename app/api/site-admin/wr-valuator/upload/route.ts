@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import {
   buildFiveYearPlayerValues,
   buildWrValuesFromCsvs,
+  normalizePlayerKey,
 } from '@/lib/wrValuator'
 
 export const dynamic = 'force-dynamic'
@@ -35,6 +36,19 @@ export async function POST(request: Request) {
       )
     }
 
+    const supabase = createAdminClient()
+
+    const { data: players, error: playersError } = await supabase
+      .from('players')
+      .select('*')
+      .not('age', 'is', null)
+
+    if (playersError) {
+      throw new Error(playersError.message)
+    }
+
+    const playerAgesByKey = buildPlayerAgeMap(players || [])
+
     const fpdCsvText = await fpdFile.text()
     const pffCsvText = await pffFile.text()
 
@@ -42,9 +56,8 @@ export async function POST(request: Request) {
       season,
       fpdCsvText,
       pffCsvText,
+      playerAgesByKey,
     })
-
-    const supabase = createAdminClient()
 
     if (yearlyRows.length > 0) {
       const chunkSize = 500
@@ -93,7 +106,10 @@ export async function POST(request: Request) {
       season,
       yearlyRowsStored: yearlyRows.length,
       playerValuesStored: playerValues.length,
-      importSummary,
+      importSummary: {
+        ...importSummary,
+        playersWithAgesLoaded: Object.keys(playerAgesByKey).length,
+      },
     })
   } catch (error: any) {
     return NextResponse.json(
@@ -105,4 +121,30 @@ export async function POST(request: Request) {
       }
     )
   }
+}
+
+function buildPlayerAgeMap(players: any[]) {
+  const agesByKey: Record<string, number> = {}
+
+  for (const player of players) {
+    const age = Number(player.age)
+
+    if (!Number.isFinite(age)) continue
+
+    const possibleNames = [
+      player.full_name,
+      player.player_name,
+      player.name,
+      player.search_full_name,
+      player.first_name && player.last_name
+        ? `${player.first_name} ${player.last_name}`
+        : null,
+    ].filter(Boolean)
+
+    for (const name of possibleNames) {
+      agesByKey[normalizePlayerKey(String(name))] = age
+    }
+  }
+
+  return agesByKey
 }
