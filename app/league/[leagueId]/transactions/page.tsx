@@ -168,6 +168,15 @@ export default async function TransactionsPage({
                         {league?.name} Transactions
                     </h1>
 
+                    <div className="mt-6 flex flex-wrap gap-3">
+                        <Link
+                            href={`/league/${leagueId}/trade-center`}
+                            className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-3 font-black text-emerald-300 transition hover:bg-emerald-500 hover:text-zinc-950"
+                        >
+                            Open Trade Center
+                        </Link>
+                    </div>
+
                     <p className="mt-3 text-zinc-400">
                         Page {currentPage} of {totalPages}
                         {selectedType && (

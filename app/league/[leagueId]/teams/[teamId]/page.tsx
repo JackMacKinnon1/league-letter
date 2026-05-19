@@ -90,6 +90,43 @@ export default async function TeamRosterPage({
             return sameOwner || sameRoster
         }) || []
 
+    const teamSeasonBySeason = new Map<string, any>()
+
+    for (const row of matchingSeasonStats) {
+        teamSeasonBySeason.set(String(row.season), row)
+    }
+
+    const { data: seasonWinners } = await supabase
+        .from('season_winners')
+        .select('*')
+        .eq('league_id', leagueId)
+
+    const leagueTitleYears = (seasonWinners || [])
+        .filter((winner: any) => {
+            const seasonTeamRow = teamSeasonBySeason.get(String(winner.season))
+
+            if (seasonTeamRow) {
+                return (
+                    Number(seasonTeamRow.sleeper_roster_id) ===
+                    Number(winner.champion_roster_id)
+                )
+            }
+
+            return Number(team.sleeper_roster_id) === Number(winner.champion_roster_id)
+        })
+        .map((winner: any) => String(winner.season))
+        .sort((a: string, b: string) => Number(b) - Number(a))
+
+    const divisionTitleYears = buildDivisionTitleYears(
+        seasonStatsRows || [],
+        matchingSeasonStats
+    )
+
+    const hasDivisionData = (seasonStatsRows || []).some((row: any) => {
+        const divisionId = row.division_id ?? row.division
+        return divisionId !== null && divisionId !== undefined && divisionId !== ''
+    })
+
     const seasons = Array.from(
         new Set(matchingSeasonStats.map((row: any) => String(row.season)))
     ).sort((a, b) => Number(b) - Number(a))
@@ -280,7 +317,45 @@ export default async function TeamRosterPage({
                     <div className="rounded-[2rem] border border-zinc-800 bg-zinc-900 p-6">
                         <h2 className="text-3xl font-black">Team Card</h2>
 
-                        <div className="mt-5 rounded-2xl bg-zinc-950 p-5">
+                        <div className="mt-5 rounded-[1.5rem] border border-amber-400/20 bg-[radial-gradient(circle_at_top_right,_rgba(251,191,36,0.14),_transparent_45%),#09090b] p-5">
+                            <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">
+                                Trophy Case
+                            </p>
+
+                            <div className="mt-4 grid grid-cols-2 gap-3">
+                                <div className="rounded-2xl bg-zinc-950/80 p-4 ring-1 ring-white/10">
+                                    <p className="text-4xl font-black text-amber-300">
+                                        {leagueTitleYears.length}
+                                    </p>
+                                    <p className="mt-1 text-xs font-black uppercase tracking-[0.18em] text-zinc-400">
+                                        League Titles
+                                    </p>
+                                </div>
+
+                                {hasDivisionData && (
+                                    <div className="rounded-2xl bg-zinc-950/80 p-4 ring-1 ring-white/10">
+                                        <p className="text-4xl font-black text-emerald-400">
+                                            {divisionTitleYears.length}
+                                        </p>
+                                        <p className="mt-1 text-xs font-black uppercase tracking-[0.18em] text-zinc-400">
+                                            Division Titles
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="mt-4 space-y-3 text-sm">
+                                <TrophyYears label="League title years" years={leagueTitleYears} />
+                                {hasDivisionData && (
+                                    <TrophyYears
+                                        label="Division title years"
+                                        years={divisionTitleYears}
+                                    />
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="mt-4 rounded-2xl bg-zinc-950 p-5">
                             <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-400">
                                 Selected View
                             </p>
@@ -322,3 +397,96 @@ export default async function TeamRosterPage({
         </main>
     )
 }
+
+function TrophyYears({ label, years }: { label: string; years: string[] }) {
+    return (
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-950/70 p-4">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-500">
+                {label}
+            </p>
+
+            {years.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                    {years.map((year) => (
+                        <span
+                            key={`${label}-${year}`}
+                            className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-black text-zinc-200"
+                        >
+                            {year}
+                        </span>
+                    ))}
+                </div>
+            ) : (
+                <p className="mt-2 text-sm text-zinc-500">None yet</p>
+            )}
+        </div>
+    )
+}
+
+function buildDivisionTitleYears(allSeasonRows: any[], teamSeasonRows: any[]) {
+    const teamRowsBySeason = new Map<string, any>()
+
+    for (const row of teamSeasonRows) {
+        teamRowsBySeason.set(String(row.season), row)
+    }
+
+    const rowsBySeason = new Map<string, any[]>()
+
+    for (const row of allSeasonRows) {
+        const divisionId = row.division_id ?? row.division
+
+        if (divisionId === null || divisionId === undefined || divisionId === '') {
+            continue
+        }
+
+        const season = String(row.season)
+
+        if (!rowsBySeason.has(season)) {
+            rowsBySeason.set(season, [])
+        }
+
+        rowsBySeason.get(season)?.push(row)
+    }
+
+    const titleYears: string[] = []
+
+    for (const [season, seasonRows] of rowsBySeason.entries()) {
+        const teamRow = teamRowsBySeason.get(season)
+
+        if (!teamRow) continue
+
+        const teamDivisionId = teamRow.division_id ?? teamRow.division
+
+        if (
+            teamDivisionId === null ||
+            teamDivisionId === undefined ||
+            teamDivisionId === ''
+        ) {
+            continue
+        }
+
+        const divisionRows = seasonRows.filter(
+            (row) => String(row.division_id ?? row.division) === String(teamDivisionId)
+        )
+
+        const [divisionWinner] = [...divisionRows].sort((a, b) => {
+            const winDiff = Number(b.wins || 0) - Number(a.wins || 0)
+            if (winDiff !== 0) return winDiff
+
+            const tieDiff = Number(b.ties || 0) - Number(a.ties || 0)
+            if (tieDiff !== 0) return tieDiff
+
+            return Number(b.points_for || 0) - Number(a.points_for || 0)
+        })
+
+        if (
+            divisionWinner &&
+            Number(divisionWinner.sleeper_roster_id) === Number(teamRow.sleeper_roster_id)
+        ) {
+            titleYears.push(season)
+        }
+    }
+
+    return titleYears.sort((a, b) => Number(b) - Number(a))
+}
+

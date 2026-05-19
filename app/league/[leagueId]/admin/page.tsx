@@ -6,6 +6,7 @@ import PowerRankingsManager from '@/components/PowerRankingsManager'
 import ArticleManager from '@/components/ArticleManager'
 import MemberInviteManager from '@/components/MemberInviteManager'
 import BreakingNewsManager from '@/components/BreakingNewsManager'
+import LeagueTickerManager from '@/components/LeagueTickerManager'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { isLeagueAdmin } from '@/lib/permissions'
@@ -125,6 +126,19 @@ export default async function LeagueAdminPage({
     .eq('league_id', leagueId)
     .order('created_at', { ascending: false })
 
+  const { data: tickerSettings, error: tickerSettingsError } = await supabase
+    .from('league_ticker_settings')
+    .select('*')
+    .eq('league_id', leagueId)
+    .maybeSingle()
+
+  const { data: tickerItems, error: tickerItemsError } = await supabase
+    .from('league_ticker_items')
+    .select('*')
+    .eq('league_id', leagueId)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
+
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
       <Navbar />
@@ -156,6 +170,13 @@ export default async function LeagueAdminPage({
       </section>
 
       <section className="mx-auto max-w-7xl space-y-6 px-4 py-8">
+        <LeagueTickerManager
+          leagueId={leagueId}
+          initialSettings={tickerSettings}
+          initialItems={tickerItems || []}
+          setupError={tickerSettingsError?.message || tickerItemsError?.message}
+        />
+
         <BreakingNewsManager
           leagueId={leagueId}
           existingNews={breakingNews || []}

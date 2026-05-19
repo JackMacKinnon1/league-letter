@@ -3,6 +3,7 @@ import Navbar from '@/components/Navbar'
 import LeagueWeekSelector from '@/components/LeagueWeekSelector'
 import TransactionCard from '@/components/TransactionCard'
 import MostRecentTransactionPanel from '@/components/MostRecentTransactionsPanel'
+import LeagueTicker from '@/components/LeagueTicker'
 import { createClient } from '@/lib/supabase/server'
 import { isLeagueAdmin } from '@/lib/permissions'
 import {
@@ -95,6 +96,20 @@ export default async function LeaguePage({
     .limit(1)
 
   const latestBreakingNews = breakingNews?.[0]
+
+  const { data: tickerSettings } = await supabase
+    .from('league_ticker_settings')
+    .select('*')
+    .eq('league_id', leagueId)
+    .maybeSingle()
+
+  const { data: tickerItems } = await supabase
+    .from('league_ticker_items')
+    .select('*')
+    .eq('league_id', leagueId)
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true })
 
   const { data: featured } = await supabase
     .from('featured_matchups')
@@ -202,6 +217,7 @@ export default async function LeaguePage({
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
       <Navbar />
+      <LeagueTicker settings={tickerSettings} items={tickerItems || []} />
       <section className="border-b border-zinc-800 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.25),_transparent_35%),linear-gradient(to_bottom,_#064e3b,_#09090b)] px-4 py-12">
         <div className="mx-auto max-w-7xl">
           <p className="text-sm font-black uppercase tracking-[0.35em] text-emerald-300">
@@ -232,6 +248,12 @@ export default async function LeaguePage({
                 className="rounded-2xl border border-white/20 bg-white/10 px-5 py-3 font-black backdrop-blur transition hover:bg-white/20"
               >
                 Draft Room
+              </Link>
+              <Link
+                href={`/league/${leagueId}/trade-center`}
+                className="rounded-2xl border border-white/20 bg-white/10 px-5 py-3 font-black backdrop-blur transition hover:bg-white/20"
+              >
+                Trade Center
               </Link>
               {user ? (
                 <Link
@@ -316,6 +338,33 @@ export default async function LeaguePage({
               label="Teams"
               value={String(teamsForSelectedSeason?.length || 0)}
               subvalue="Synced from Sleeper"
+            />
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <LeagueActionLink
+              href={`/league/${leagueId}/trade-center`}
+              eyebrow="Trades"
+              title="Trade Center"
+              description="Trade history, superlatives, and trade trees."
+            />
+            <LeagueActionLink
+              href={`/league/${leagueId}/transactions`}
+              eyebrow="Activity"
+              title="Transactions"
+              description="Adds, drops, waivers, and league moves."
+            />
+            <LeagueActionLink
+              href={`/league/${leagueId}/drafts`}
+              eyebrow="Drafts"
+              title="Draft Room"
+              description="Draft boards and pick ownership history."
+            />
+            <LeagueActionLink
+              href={`/league/${leagueId}/winners`}
+              eyebrow="History"
+              title="Trophy Room"
+              description="Champions and division winners by year."
             />
           </div>
 
@@ -579,6 +628,37 @@ export default async function LeaguePage({
         </aside>
       </section>
     </main>
+  )
+}
+
+
+function LeagueActionLink({
+  href,
+  eyebrow,
+  title,
+  description,
+}: {
+  href: string
+  eyebrow: string
+  title: string
+  description: string
+}) {
+  return (
+    <Link
+      href={href}
+      className="group rounded-[1.5rem] border border-white/10 bg-zinc-950/60 p-4 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:border-emerald-400/60 hover:bg-zinc-950"
+    >
+      <p className="text-[0.65rem] font-black uppercase tracking-[0.25em] text-emerald-300">
+        {eyebrow}
+      </p>
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <h3 className="text-lg font-black text-white">{title}</h3>
+        <span className="rounded-full bg-white/10 px-2 py-1 text-sm font-black text-emerald-300 transition group-hover:bg-emerald-400 group-hover:text-zinc-950">
+          →
+        </span>
+      </div>
+      <p className="mt-2 text-sm leading-6 text-zinc-400">{description}</p>
+    </Link>
   )
 }
 
