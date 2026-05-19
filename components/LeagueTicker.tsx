@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Flame, Pause, Zap } from 'lucide-react'
+import { Pause, Zap } from 'lucide-react'
 
 type TickerSettings = {
   is_enabled?: boolean
@@ -43,20 +43,10 @@ export default function LeagueTicker({
   if (!tickerSettings.is_enabled || activeItems.length === 0) return null
 
   const speed = Math.max(Number(tickerSettings.speed_seconds || 32), 8)
-  const label = tickerSettings.label?.trim() || 'League Ticker'
   const loopItems = [...activeItems, ...activeItems]
-  const gradientClass = getGradientClass(tickerSettings.background_style)
-
   return (
     <section className="border-b border-emerald-500/20 bg-zinc-950 text-white">
       <div className="flex overflow-hidden">
-        <div className={`relative z-10 flex shrink-0 items-center gap-2 px-4 py-3 ${gradientClass}`}>
-          <Flame size={17} className="text-zinc-950" />
-          <span className="whitespace-nowrap text-xs font-black uppercase tracking-[0.22em] text-zinc-950">
-            {label}
-          </span>
-        </div>
-
         <div className="league-ticker-shell group relative flex min-w-0 flex-1 items-center overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.14),_transparent_34%),#09090b]">
           <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-16 bg-gradient-to-r from-zinc-950 to-transparent" />
           <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-16 bg-gradient-to-l from-zinc-950 to-transparent" />
@@ -124,12 +114,4 @@ function TickerItemPill({ item }: { item: TickerItem }) {
   }
 
   return content
-}
-
-function getGradientClass(style?: string | null) {
-  if (style === 'gold') return 'bg-gradient-to-r from-amber-300 to-yellow-500'
-  if (style === 'red') return 'bg-gradient-to-r from-red-400 to-orange-500'
-  if (style === 'blue') return 'bg-gradient-to-r from-sky-300 to-blue-500'
-  if (style === 'purple') return 'bg-gradient-to-r from-fuchsia-300 to-violet-500'
-  return 'bg-gradient-to-r from-emerald-300 to-lime-400'
 }
