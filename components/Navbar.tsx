@@ -30,6 +30,10 @@ export default async function Navbar() {
               <Link href="/dynasty-rankings" className="hover:text-emerald-400">
                 Dynasty Rankings
               </Link>
+
+              <Link href="/mock-draft" className="hover:text-emerald-400">
+                Mock Draft
+              </Link>
               
               <Link href="/dashboard" className="hover:text-white">
                 Dashboard
