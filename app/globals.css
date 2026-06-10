@@ -7,11 +7,15 @@
 
 html {
   background: var(--background);
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 input,
@@ -28,19 +32,12 @@ select {
   overflow: hidden;
 }
 
-a,
-button {
+a {
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
     color 150ms ease,
-    opacity 150ms ease,
-    transform 150ms ease;
-}
-
-a:active,
-button:active {
-  transform: scale(0.98);
+    opacity 150ms ease;
 }
 
 .article-body {
@@ -131,4 +128,298 @@ button:active {
   max-width: 100%;
   border-radius: 1.5rem;
   border: 1px solid #27272a;
+}
+button,
+input[type='button'],
+input[type='submit'],
+summary,
+[role='button'] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button > svg,
+button > span,
+button > div,
+button > p {
+  pointer-events: none;
+}
+
+summary > svg,
+summary > span,
+summary > div,
+summary > p {
+  pointer-events: none;
+}
+
+
+/* Professional app skin -------------------------------------------------- */
+:root {
+  --background: #07080a;
+  --foreground: #f4f4f5;
+  --surface: #101216;
+  --surface-2: #151821;
+  --surface-3: #1b1f2a;
+  --border-soft: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --accent: #34d399;
+  --accent-muted: rgba(52, 211, 153, 0.12);
+}
+
+html {
+  background:
+    radial-gradient(circle at 20% -10%, rgba(16, 185, 129, 0.12), transparent 32rem),
+    radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.08), transparent 34rem),
+    var(--background);
+}
+
+body {
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.025), transparent 18rem),
+    var(--background);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(52, 211, 153, 0.25);
+  color: #ffffff;
+}
+
+/* Tone down the old cartoonish palette app-wide without rewriting every page. */
+.bg-zinc-950 { background-color: var(--background) !important; }
+.bg-zinc-900 { background-color: var(--surface) !important; }
+.bg-zinc-800 { background-color: var(--surface-2) !important; }
+.border-zinc-800 { border-color: var(--border-soft) !important; }
+.border-zinc-700 { border-color: var(--border-strong) !important; }
+.text-zinc-300 { color: #d4d7dd !important; }
+.text-zinc-400 { color: #9ca3af !important; }
+.text-zinc-500 { color: #707784 !important; }
+.bg-emerald-500 { background-color: var(--accent) !important; }
+.text-emerald-400,
+.text-emerald-300 { color: var(--accent) !important; }
+.border-emerald-500,
+.border-emerald-400\/50 { border-color: rgba(52, 211, 153, 0.55) !important; }
+.bg-emerald-500\/10,
+.bg-emerald-400\/10 { background-color: var(--accent-muted) !important; }
+
+main.min-h-screen {
+  background:
+    radial-gradient(circle at 15% -10%, rgba(52, 211, 153, 0.10), transparent 30rem),
+    radial-gradient(circle at 85% 0%, rgba(59, 130, 246, 0.06), transparent 28rem),
+    var(--background) !important;
+}
+
+section[class*="rounded"],
+div[class*="rounded-"][class*="border"][class*="bg-zinc-900"],
+div[class*="rounded-"][class*="border"][class*="bg-zinc-950"] {
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.18);
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.035em;
+}
+
+button,
+a,
+select,
+input,
+textarea {
+  outline-offset: 3px;
+}
+
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(52, 211, 153, 0.7);
+}
+
+input,
+textarea,
+select {
+  background-color: rgba(255,255,255,0.035) !important;
+  border-color: var(--border-soft) !important;
+  color: var(--foreground) !important;
+}
+
+select option {
+  background: #101216;
+  color: #f4f4f5;
+}
+
+@keyframes loading-bar {
+  0% { transform: translateX(-115%); }
+  55% { transform: translateX(40%); }
+  100% { transform: translateX(230%); }
+}
+
+@media (max-width: 768px) {
+  h1 { font-size: clamp(2.25rem, 13vw, 3.65rem) !important; }
+  h2 { font-size: clamp(1.65rem, 8vw, 2.35rem) !important; }
+
+  .mx-auto.max-w-7xl,
+  .mx-auto.max-w-6xl,
+  .mx-auto.max-w-5xl {
+    width: 100%;
+  }
+
+  section[class*="py-12"],
+  section[class*="py-16"] {
+    padding-top: 2rem !important;
+    padding-bottom: 2rem !important;
+  }
+
+  div[class*="rounded-[2rem]"],
+  section[class*="rounded-[2rem]"] {
+    border-radius: 1.25rem !important;
+  }
+}
+
+.font-black {
+  font-weight: 700 !important;
+}
+
+
+/* Mobile navigation -------------------------------------------------------
+   Use a native <details>/<summary> menu. It does not need React click state,
+   so real mobile browsers can toggle it even when click handlers are flaky. */
+.mobile-menu {
+  position: relative;
+  z-index: 2147483647;
+  display: none;
+}
+
+.mobile-menu-summary {
+  display: flex;
+  height: 44px;
+  width: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.875rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #101216;
+  color: rgb(244 244 245);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  list-style: none;
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.mobile-menu-summary::-webkit-details-marker,
+.mobile-menu-summary::marker {
+  display: none;
+  content: '';
+}
+
+.mobile-menu-summary:active {
+  transform: scale(0.96);
+  background: #1a1d24;
+}
+
+.mobile-menu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-menu-close-icon {
+  display: none;
+}
+
+.mobile-menu[open] .mobile-menu-open-icon {
+  display: none;
+}
+
+.mobile-menu[open] .mobile-menu-close-icon {
+  display: flex;
+}
+
+.mobile-menu-card {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 4.75rem);
+  left: 1rem;
+  right: 1rem;
+  z-index: 2147483646;
+  display: none;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #101216;
+  padding: 0.5rem;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.75);
+  pointer-events: auto;
+}
+
+.mobile-menu[open] .mobile-menu-card {
+  display: block;
+}
+
+@media (max-width: 767px) {
+  .mobile-menu {
+    display: block;
+  }
+}
+
+/* League ticker marquee lives in global CSS so it keeps running reliably in Next app/client boundaries. */
+.league-ticker-track {
+  animation-name: league-ticker-marquee;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-play-state: running;
+  will-change: transform;
+}
+
+.league-ticker-shell:hover .league-ticker-pausable {
+  animation-play-state: paused;
+}
+
+@keyframes league-ticker-marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-33.333%, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .league-ticker-track {
+    animation-duration: 90s !important;
+  }
+}
+
+@keyframes scoreUpdateGlow {
+  0% {
+    background: rgba(16, 185, 129, 0.24);
+    box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.55), 0 0 28px rgba(52, 211, 153, 0.35);
+  }
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+@keyframes transactionGoldGlow {
+  0% {
+    border-color: rgba(251, 191, 36, 0.95);
+    background: rgba(251, 191, 36, 0.14);
+    box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.6), 0 0 34px rgba(251, 191, 36, 0.35);
+  }
+  100% {
+    border-color: rgba(39, 39, 42, 1);
+    background: rgb(9, 9, 11);
+    box-shadow: none;
+  }
+}
+
+.score-update-glow {
+  animation: scoreUpdateGlow 2.2s ease-out;
+}
+
+.transaction-gold-glow {
+  animation: transactionGoldGlow 2.4s ease-out;
 }

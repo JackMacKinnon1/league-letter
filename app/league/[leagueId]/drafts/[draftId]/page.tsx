@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/NoPrefetchLink'
 import Navbar from '@/components/Navbar'
 import { createClient } from '@/lib/supabase/server'
 import {
@@ -98,7 +98,7 @@ export default async function DraftBoardPage({
     <main className="min-h-screen bg-zinc-950 text-white">
       <Navbar />
 
-      <section className="border-b border-zinc-800 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.22),_transparent_35%),linear-gradient(to_bottom,_#052e25,_#09090b)] px-4 py-10">
+      <section className="border-b border-zinc-800 bg-white/[0.015] px-4 py-10">
         <div className="mx-auto w-full max-w-none px-0 md:px-2 2xl:px-4">
           <Link
             href={`/league/${leagueId}/drafts`}

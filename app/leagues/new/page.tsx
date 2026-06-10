@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/NoPrefetchLink'
 import Navbar from '@/components/Navbar'
 import LoadLeagueForm from '@/components/LoadLeagueForm'
 import { createClient } from '@/lib/supabase/server'

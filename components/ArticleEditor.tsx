@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
+import Link from '@/components/NoPrefetchLink'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
 

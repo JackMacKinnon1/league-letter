@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/NoPrefetchLink'
 import Navbar from '@/components/Navbar'
 import { createClient } from '@/lib/supabase/server'
 import { getSleeperPlayers } from '@/lib/sleeper'
@@ -51,7 +51,7 @@ export default async function TeamRosterPage({
     <main className="min-h-screen bg-zinc-950 text-white">
       <Navbar />
 
-      <section className="border-b border-zinc-800 bg-gradient-to-b from-emerald-950/50 to-zinc-950 px-4 py-10">
+      <section className="border-b border-zinc-800 bg-white/[0.015] px-4 py-10">
         <div className="mx-auto max-w-7xl">
           <Link
             href={`/league/${leagueId}`}

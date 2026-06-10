@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTransition } from 'react'
 
 export default function TransactionFilters({
     leagueId,
@@ -19,6 +20,7 @@ export default function TransactionFilters({
 }) {
     const router = useRouter()
     const searchParams = useSearchParams()
+    const [isPending, startTransition] = useTransition()
 
     function updateFilter(key: string, value: string) {
         const params = new URLSearchParams(searchParams.toString())
@@ -31,11 +33,20 @@ export default function TransactionFilters({
 
         params.set('page', '1')
 
-        router.push(`/league/${leagueId}/transactions?${params.toString()}`)
+        startTransition(() => {
+            router.push(`/league/${leagueId}/transactions?${params.toString()}`)
+        })
     }
 
     return (
-        <div className="mt-8 rounded-[2rem] border border-zinc-800 bg-zinc-900 p-5">
+        <div className="mt-8 overflow-hidden rounded-[2rem] border border-zinc-800 bg-zinc-900">
+            {isPending && (
+                <div className="h-1 w-full overflow-hidden bg-white/5">
+                    <div className="h-full w-1/2 animate-[loading-bar_1.15s_ease-in-out_infinite] rounded-full bg-emerald-400/80" />
+                </div>
+            )}
+
+            <div className="p-5">
             <div className="grid gap-4 md:grid-cols-3">
                 <div>
                     <label className="text-sm font-bold text-zinc-400">
@@ -94,12 +105,13 @@ export default function TransactionFilters({
 
             {(selectedType || selectedTeam || selectedSeason) && (
                 <button
-                    onClick={() => router.push(`/league/${leagueId}/transactions`)}
+                    onClick={() => startTransition(() => router.push(`/league/${leagueId}/transactions`))}
                     className="mt-4 rounded-xl border border-zinc-700 px-4 py-2 text-sm font-bold text-zinc-300 hover:bg-zinc-800"
                 >
                     Clear Filters
                 </button>
             )}
+            </div>
         </div>
     )
 }

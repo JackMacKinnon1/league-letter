@@ -1,74 +1,100 @@
-import Link from 'next/link'
+import Link from '@/components/NoPrefetchLink'
 import Navbar from '@/components/Navbar'
-import { Newspaper, ShieldCheck, Swords, TrendingUp } from 'lucide-react'
+import { BarChart3, Newspaper, ShieldCheck, Swords, TrendingUp } from 'lucide-react'
 
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
       <Navbar />
 
-      <section className="mx-auto grid max-w-7xl gap-10 px-4 py-16 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+      <section className="mx-auto grid max-w-7xl gap-10 px-4 py-14 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-20">
         <div>
-          <p className="mb-4 text-sm font-black uppercase tracking-[0.35em] text-emerald-400">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
             Powered by Sleeper
-          </p>
+          </div>
 
-          <h1 className="max-w-4xl text-5xl font-black tracking-tight md:text-7xl">
-            Turn your fantasy league into a weekly sports newspaper.
+          <h1 className="mt-6 max-w-4xl text-5xl font-semibold tracking-tight md:text-7xl">
+            A real media hub for your fantasy league.
           </h1>
 
           <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-300">
-            Load your Sleeper league, publish articles, feature matchups, write
-            weekly power rankings, and give your league its own media empire.
+            League Letter turns your Sleeper league into a polished newsroom with
+            articles, matchups, transactions, rankings, drafts, and admin tools
+            built for desktop and mobile.
           </p>
 
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
               href="/signup"
-              className="rounded-2xl bg-emerald-500 px-6 py-3 font-black text-zinc-950 transition hover:bg-emerald-400"
+              className="rounded-xl bg-white px-6 py-3 text-center font-semibold text-zinc-950 transition hover:bg-zinc-200"
             >
               Create Account
             </Link>
 
             <Link
               href="/leagues/new"
-              className="rounded-2xl border border-zinc-700 px-6 py-3 font-black transition hover:bg-zinc-900"
+              className="rounded-xl border border-white/10 bg-white/[0.04] px-6 py-3 text-center font-semibold text-zinc-100 transition hover:bg-white/[0.08]"
             >
               Load Sleeper League
             </Link>
           </div>
         </div>
 
-        <div className="rounded-[2rem] border border-zinc-800 bg-zinc-900 p-5 shadow-2xl">
-          <div className="rounded-[1.5rem] bg-zinc-950 p-5">
-            <div className="border-b border-zinc-800 pb-4">
-              <p className="text-xs font-bold uppercase tracking-[0.25em] text-zinc-500">
-                Week 8 Edition
-              </p>
-              <h2 className="mt-2 text-4xl font-black">The League Letter</h2>
+        <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.035] shadow-2xl shadow-black/30">
+          <div className="border-b border-white/10 px-5 py-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">
+                  Week 8 Edition
+                </p>
+                <h2 className="mt-2 text-3xl font-semibold tracking-tight">
+                  League Command Center
+                </h2>
+              </div>
+              <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-300">
+                Live
+              </div>
             </div>
+          </div>
 
-            <div className="mt-5 grid gap-4">
-              <PreviewCard
-                icon={<Swords size={20} />}
-                title="Featured Matchup"
-                body="Jack vs Duncan headlines a disgusting week of trash talk."
-              />
-              <PreviewCard
-                icon={<TrendingUp size={20} />}
-                title="Power Rankings"
-                body="A new team takes the top spot after a 164-point explosion."
-              />
-              <PreviewCard
-                icon={<Newspaper size={20} />}
-                title="League Articles"
-                body="Owners can publish columns, recaps, rankings, and slander."
-              />
-              <PreviewCard
-                icon={<ShieldCheck size={20} />}
-                title="Admin Control"
-                body="Admins approve writers, manage features, and delete nonsense."
-              />
+          <div className="grid gap-px bg-white/10 sm:grid-cols-2">
+            <PreviewCard
+              icon={<Swords size={19} />}
+              title="Featured Matchup"
+              body="Highlight the matchup of the week with records, projections, and league context."
+            />
+            <PreviewCard
+              icon={<TrendingUp size={19} />}
+              title="Power Rankings"
+              body="Publish weekly rankings that look like a real sports media product."
+            />
+            <PreviewCard
+              icon={<Newspaper size={19} />}
+              title="Articles"
+              body="Owners can write recaps, previews, columns, and league drama."
+            />
+            <PreviewCard
+              icon={<BarChart3 size={19} />}
+              title="Transactions"
+              body="Track trades, waivers, free agents, and roster movement cleanly."
+            />
+          </div>
+
+          <div className="border-t border-white/10 p-5">
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-emerald-300">
+                  <ShieldCheck size={18} />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Admin-ready by default</h3>
+                  <p className="mt-1 text-sm leading-6 text-zinc-400">
+                    Load a league, manage writers, sync Sleeper data, and keep the
+                    site feeling fast with polished loading states.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -87,15 +113,13 @@ function PreviewCard({
   body: string
 }) {
   return (
-    <div className="flex gap-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-zinc-950">
+    <div className="bg-[#101216] p-5">
+      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-emerald-300">
         {icon}
       </div>
 
-      <div>
-        <h3 className="font-black">{title}</h3>
-        <p className="mt-1 text-sm leading-6 text-zinc-400">{body}</p>
-      </div>
+      <h3 className="mt-4 font-semibold">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-zinc-400">{body}</p>
     </div>
   )
 }

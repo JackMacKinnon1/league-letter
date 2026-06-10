@@ -40,7 +40,7 @@ export default function AdminSyncButton({ leagueId }: { leagueId: string }) {
                 } team scoring profiles. ${playerText}`
             )
 
-            window.location.reload()
+            setLoading(false)
         } catch {
             setMessage('Something went wrong.')
             setLoading(false)

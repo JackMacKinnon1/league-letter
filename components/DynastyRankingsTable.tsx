@@ -142,6 +142,12 @@ export default function DynastyRankingsTable() {
           </div>
         </div>
 
+        {loading && (
+          <div className="h-1 w-full overflow-hidden bg-white/5">
+            <div className="h-full w-1/2 animate-[loading-bar_1.15s_ease-in-out_infinite] rounded-full bg-emerald-400/80" />
+          </div>
+        )}
+
         {message && (
           <div className="border-b border-red-900 bg-red-950/40 p-4 text-sm text-red-300">
             {message}

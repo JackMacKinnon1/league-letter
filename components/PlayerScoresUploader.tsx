@@ -75,7 +75,7 @@ export default function PlayerScoresUploader() {
 
   return (
     <section className="overflow-hidden rounded-[2rem] border border-zinc-800 bg-zinc-950 shadow-2xl">
-      <div className="relative border-b border-zinc-800 bg-gradient-to-br from-zinc-900 via-zinc-950 to-emerald-950/30 p-6">
+      <div className="relative border-b border-zinc-800 bg-white/[0.035] p-6">
         <div className="absolute right-6 top-6 hidden h-24 w-24 rounded-full bg-emerald-400/10 blur-3xl md:block" />
 
         <div className="relative flex items-center gap-3">

@@ -1,13 +1,15 @@
-import Link from 'next/link'
+import Link from '@/components/NoPrefetchLink'
 
 export default function TransactionCard({
   transaction,
   sleeperPlayers,
   teamByRosterId,
+  highlight = false,
 }: {
   transaction: any
   sleeperPlayers: Record<string, any>
   teamByRosterId: Map<number, any>
+  highlight?: boolean
 }) {
   if (transaction.type === 'trade') {
     return (
@@ -15,6 +17,7 @@ export default function TransactionCard({
         transaction={transaction}
         sleeperPlayers={sleeperPlayers}
         teamByRosterId={teamByRosterId}
+        highlight={highlight}
       />
     )
   }
@@ -24,6 +27,7 @@ export default function TransactionCard({
       transaction={transaction}
       sleeperPlayers={sleeperPlayers}
       teamByRosterId={teamByRosterId}
+      highlight={highlight}
     />
   )
 }
@@ -32,10 +36,12 @@ function FreeAgentTransactionCard({
   transaction,
   sleeperPlayers,
   teamByRosterId,
+  highlight,
 }: {
   transaction: any
   sleeperPlayers: Record<string, any>
   teamByRosterId: Map<number, any>
+  highlight: boolean
 }) {
   const rosterId =
     transaction.roster_ids && transaction.roster_ids.length
@@ -57,7 +63,7 @@ function FreeAgentTransactionCard({
     : []
 
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+    <div className={`rounded-2xl border border-zinc-800 bg-zinc-950 p-4 ${highlight ? 'transaction-gold-glow' : ''}`}>
       <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-400">
         {formatTransactionType(transaction.type)} · Week {transaction.week}
       </p>
@@ -100,10 +106,12 @@ function TradeTransactionCard({
   transaction,
   sleeperPlayers,
   teamByRosterId,
+  highlight,
 }: {
   transaction: any
   sleeperPlayers: Record<string, any>
   teamByRosterId: Map<number, any>
+  highlight: boolean
 }) {
   const rosterIds: number[] = transaction.roster_ids || []
 
@@ -124,12 +132,14 @@ function TradeTransactionCard({
 
     const receivedPicks = getReceivedPicksForRoster(
       transaction.draft_picks,
-      Number(rosterId)
+      Number(rosterId),
+      teamByRosterId
     )
 
     const lostPicks = getLostPicksForRoster(
       transaction.draft_picks,
-      Number(rosterId)
+      Number(rosterId),
+      teamByRosterId
     )
 
     return {
@@ -144,7 +154,7 @@ function TradeTransactionCard({
   })
 
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+    <div className={`rounded-2xl border border-zinc-800 bg-zinc-950 p-4 ${highlight ? 'transaction-gold-glow' : ''}`}>
       <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-400">
         Trade · Week {transaction.week}
       </p>
@@ -235,26 +245,41 @@ function getPlayerName(playerId: string, sleeperPlayers: Record<string, any>) {
   return fullName || player.full_name || playerId
 }
 
-function getReceivedPicksForRoster(draftPicks: any[] | null, rosterId: number) {
+function getReceivedPicksForRoster(
+  draftPicks: any[] | null,
+  rosterId: number,
+  teamByRosterId: Map<number, any>
+) {
   if (!draftPicks?.length) return []
 
   return draftPicks
     .filter((pick) => Number(pick.owner_id) === Number(rosterId))
-    .map(formatDraftPick)
+    .map((pick) => formatDraftPick(pick, teamByRosterId))
 }
 
-function getLostPicksForRoster(draftPicks: any[] | null, rosterId: number) {
+function getLostPicksForRoster(
+  draftPicks: any[] | null,
+  rosterId: number,
+  teamByRosterId: Map<number, any>
+) {
   if (!draftPicks?.length) return []
 
   return draftPicks
     .filter((pick) => Number(pick.previous_owner_id) === Number(rosterId))
-    .map(formatDraftPick)
+    .map((pick) => formatDraftPick(pick, teamByRosterId))
 }
 
-function formatDraftPick(pick: any) {
+function formatDraftPick(pick: any, teamByRosterId: Map<number, any>) {
   const season = pick.season || ''
   const round = pick.round ? `Round ${pick.round}` : 'Pick'
-  const originalOwner = pick.roster_id ? `from Roster ${pick.roster_id}` : ''
+  const originalOwnerRosterId = pick.roster_id ? Number(pick.roster_id) : null
+  const originalOwnerTeam = originalOwnerRosterId
+    ? teamByRosterId.get(originalOwnerRosterId)
+    : null
+  const originalOwnerName = originalOwnerTeam?.team_name || originalOwnerTeam?.owner_name
+  const originalOwner = originalOwnerRosterId
+    ? `from ${originalOwnerName || `Roster ${originalOwnerRosterId}`}`
+    : ''
 
   return `${season} ${round}${originalOwner ? ` ${originalOwner}` : ''}`.trim()
 }

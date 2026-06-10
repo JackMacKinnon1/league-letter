@@ -7,7 +7,7 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-const TRANSACTION_SYNC_COOLDOWN_SECONDS = 90
+const TRANSACTION_SYNC_COOLDOWN_SECONDS = 55
 
 export async function POST(
   _request: Request,

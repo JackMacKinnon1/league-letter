@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/NoPrefetchLink'
 import Navbar from '@/components/Navbar'
 import DynastyRankingsTable from '@/components/DynastyRankingsTable'
 
@@ -9,7 +9,7 @@ export default async function DynastyRankingsPage() {
     <main className="min-h-screen bg-zinc-950 text-white">
       <Navbar />
 
-      <section className="border-b border-zinc-800 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.22),_transparent_35%),linear-gradient(to_bottom,_#052e25,_#09090b)] px-4 py-12">
+      <section className="border-b border-zinc-800 bg-white/[0.015] px-4 py-12">
         <div className="mx-auto max-w-7xl">
           <Link href="/dashboard" className="text-sm font-bold text-zinc-400">
             ← Back to dashboard

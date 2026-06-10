@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import Link from '@/components/NoPrefetchLink'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   ChevronDown,
@@ -59,7 +59,7 @@ export default function TrophyRoom({
         <div className="absolute bottom-[-20%] right-[-10%] h-[34rem] w-[34rem] rounded-full bg-amber-500/10 blur-3xl" />
       </div>
 
-      <section className="relative border-b border-zinc-800 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.28),_transparent_35%),linear-gradient(to_bottom,_#064e3b,_#09090b)] px-4 py-12 md:py-16">
+      <section className="relative border-b border-zinc-800 bg-white/[0.015] px-4 py-12 md:py-16">
         <div className="mx-auto max-w-7xl">
           <Link
             href={`/league/${leagueId}`}
@@ -289,7 +289,7 @@ function ChampionCard({
   season: TrophySeason
 }) {
   return (
-    <div className="relative overflow-hidden rounded-[1.5rem] border border-amber-400/20 bg-[radial-gradient(circle_at_top_right,_rgba(251,191,36,0.18),_transparent_40%),#09090b] p-5">
+    <div className="relative overflow-hidden rounded-[1.5rem] border border-amber-400/20 bg-black/15 p-5">
       <div className="absolute right-5 top-5 text-amber-300/20">
         <Sparkles size={80} />
       </div>

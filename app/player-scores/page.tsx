@@ -134,7 +134,7 @@ export default function PlayerScoresPage() {
   return (
     <main className="min-h-screen bg-zinc-950 px-4 py-8 text-white">
       <div className="mx-auto max-w-7xl">
-        <section className="overflow-hidden rounded-[2rem] border border-zinc-800 bg-gradient-to-br from-zinc-900 via-zinc-950 to-emerald-950/20 p-6 shadow-2xl">
+        <section className="overflow-hidden rounded-[2rem] border border-zinc-800 bg-white/[0.035] p-6 shadow-2xl">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.3em] text-emerald-300">
@@ -257,6 +257,12 @@ export default function PlayerScoresPage() {
             </div>
           </div>
 
+          {loading && (
+            <div className="h-1 w-full overflow-hidden bg-white/5">
+              <div className="h-full w-1/2 animate-[loading-bar_1.15s_ease-in-out_infinite] rounded-full bg-emerald-400/80" />
+            </div>
+          )}
+
           {error && <div className="m-5 rounded-2xl border border-red-500/30 bg-red-950/30 p-4 text-sm font-bold text-red-200">{error}</div>}
 
           <div className="overflow-x-auto">
@@ -344,7 +350,7 @@ function PlayerStatsModal({ player, onClose }: { player: ScoreRow; onClose: () =
         onClick={(event) => event.stopPropagation()}
         className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-[2rem] border border-zinc-800 bg-zinc-950 shadow-2xl"
       >
-        <div className="flex items-start justify-between gap-4 border-b border-zinc-800 bg-gradient-to-br from-zinc-900 to-emerald-950/30 p-6">
+        <div className="flex items-start justify-between gap-4 border-b border-zinc-800 bg-white/[0.035] p-6">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.3em] text-emerald-300">
               Advanced Stats

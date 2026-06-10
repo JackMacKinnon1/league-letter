@@ -1,7 +1,6 @@
-import Link from 'next/link'
+import Link from '@/components/NoPrefetchLink'
 import Navbar from '@/components/Navbar'
-import TransactionCard from '@/components/TransactionCard'
-import AutoTransactionSync from '@/components/AutoTransactionsSync'
+import LiveTransactionsList from '@/components/LiveTransactionsList'
 import TransactionFilters from '@/components/TransactionFilters'
 import { createClient } from '@/lib/supabase/server'
 
@@ -115,11 +114,6 @@ export default async function TransactionsPage({
         }
     }
 
-    const teamByRosterId = new Map<number, any>()
-
-    for (const teamRow of teams || []) {
-        teamByRosterId.set(Number(teamRow.sleeper_roster_id), teamRow)
-    }
 
     const totalPages = Math.max(Math.ceil((count || 0) / PAGE_SIZE), 1)
     const hasPrevious = currentPage > 1
@@ -150,8 +144,7 @@ export default async function TransactionsPage({
     return (
         <main className="min-h-screen bg-zinc-950 text-white">
             <Navbar />
-            <AutoTransactionSync leagueId={leagueId} />
-            <section className="border-b border-zinc-800 bg-gradient-to-b from-emerald-950/50 to-zinc-950 px-4 py-10">
+            <section className="border-b border-zinc-800 bg-white/[0.015] px-4 py-10">
                 <div className="mx-auto max-w-5xl">
                     <Link
                         href={`/league/${leagueId}`}
@@ -164,14 +157,14 @@ export default async function TransactionsPage({
                         Transaction Log
                     </p>
 
-                    <h1 className="mt-3 text-5xl font-black">
+                    <h1 className="mt-3 text-5xl font-semibold tracking-tight">
                         {league?.name} Transactions
                     </h1>
 
                     <div className="mt-6 flex flex-wrap gap-3">
                         <Link
                             href={`/league/${leagueId}/trade-center`}
-                            className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-3 font-black text-emerald-300 transition hover:bg-emerald-500 hover:text-zinc-950"
+                            className="rounded-xl border border-white/10 bg-white/[0.04] px-5 py-3 font-semibold text-zinc-100 transition hover:bg-white/[0.08]"
                         >
                             Open Trade Center
                         </Link>
@@ -209,22 +202,16 @@ export default async function TransactionsPage({
             </section>
 
             <section className="mx-auto max-w-5xl px-4 py-8">
-                <div className="space-y-4">
-                    {transactions?.map((transaction: any) => (
-                        <TransactionCard
-                            key={transaction.id}
-                            transaction={transaction}
-                            sleeperPlayers={sleeperPlayers}
-                            teamByRosterId={teamByRosterId}
-                        />
-                    ))}
-
-                    {!transactions?.length && (
-                        <div className="rounded-[2rem] border border-zinc-800 bg-zinc-900 p-8 text-zinc-400">
-                            No transactions found with these filters.
-                        </div>
-                    )}
-                </div>
+                <LiveTransactionsList
+                    leagueId={leagueId}
+                    initialTransactions={transactions || []}
+                    initialPlayers={sleeperPlayers}
+                    initialTeams={teams || []}
+                    selectedSeason={selectedSeason}
+                    selectedType={selectedType}
+                    selectedTeam={selectedTeam}
+                    pageSize={PAGE_SIZE}
+                />
 
                 <div className="mt-8 flex items-center justify-between gap-3">
                     {hasPrevious ? (

@@ -41,15 +41,36 @@ export default async function TradeCenterPage({
     }
   }
 
-  const { data: localPlayers } = await supabase
-    .from('players')
-    .select('*')
-    .in('id', playerIds.size ? Array.from(playerIds) : [''])
+  const playerIdList = Array.from(playerIds)
+  let localPlayers: any[] = []
+
+  if (playerIdList.length) {
+    const { data } = await supabase
+      .from('players')
+      .select('*')
+      .in('id', playerIdList)
+
+    localPlayers = data || []
+
+    const missingIds = playerIdList.filter(
+      (playerId) => !localPlayers.some((player: any) => String(player.id) === String(playerId))
+    )
+
+    if (missingIds.length) {
+      const { data: sleeperIdPlayers } = await supabase
+        .from('players')
+        .select('*')
+        .in('sleeper_player_id', missingIds)
+
+      localPlayers = [...localPlayers, ...(sleeperIdPlayers || [])]
+    }
+  }
 
   const playersById: Record<string, any> = {}
 
   for (const player of localPlayers || []) {
-    playersById[player.id] = player
+    if (player.id) playersById[String(player.id)] = player
+    if (player.sleeper_player_id) playersById[String(player.sleeper_player_id)] = player
   }
 
   return (

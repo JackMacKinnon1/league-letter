@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/NoPrefetchLink'
 import Navbar from '@/components/Navbar'
 import TeamSeasonSelector from '@/components/TeamSeasonSelector'
 import { createClient } from '@/lib/supabase/server'
@@ -219,7 +219,7 @@ export default async function TeamRosterPage({
         <main className="min-h-screen bg-zinc-950 text-white">
             <Navbar />
 
-            <section className="border-b border-zinc-800 bg-gradient-to-b from-emerald-950/50 to-zinc-950 px-4 py-10">
+            <section className="border-b border-zinc-800 bg-white/[0.015] px-4 py-10">
                 <div className="mx-auto max-w-7xl">
                     <Link
                         href={`/league/${leagueId}`}
@@ -317,7 +317,7 @@ export default async function TeamRosterPage({
                     <div className="rounded-[2rem] border border-zinc-800 bg-zinc-900 p-6">
                         <h2 className="text-3xl font-black">Team Card</h2>
 
-                        <div className="mt-5 rounded-[1.5rem] border border-amber-400/20 bg-[radial-gradient(circle_at_top_right,_rgba(251,191,36,0.14),_transparent_45%),#09090b] p-5">
+                        <div className="mt-5 rounded-[1.5rem] border border-amber-400/20 bg-black/15 p-5">
                             <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">
                                 Trophy Case
                             </p>

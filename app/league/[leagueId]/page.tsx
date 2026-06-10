@@ -1,8 +1,9 @@
-import Link from 'next/link'
+import Link from '@/components/NoPrefetchLink'
 import Navbar from '@/components/Navbar'
 import LeagueWeekSelector from '@/components/LeagueWeekSelector'
 import TransactionCard from '@/components/TransactionCard'
 import MostRecentTransactionPanel from '@/components/MostRecentTransactionsPanel'
+import LiveMatchupsPanel from '@/components/LiveMatchupsPanel'
 import LeagueTicker from '@/components/LeagueTicker'
 import { createClient } from '@/lib/supabase/server'
 import { isLeagueAdmin } from '@/lib/permissions'
@@ -52,6 +53,9 @@ export default async function LeaguePage({
     String(new Date().getFullYear())
 
   const selectedWeek = Math.max(Number(week || league?.current_week || 1), 1)
+  const pollLiveScores =
+    String(league?.status || '').toLowerCase() === 'in_season' &&
+    String(selectedSeason) === String(league?.season || '')
 
   const { data: teams } = await supabase
     .from('teams')
@@ -218,7 +222,7 @@ export default async function LeaguePage({
     <main className="min-h-screen bg-zinc-950 text-white">
       <Navbar />
       <LeagueTicker settings={tickerSettings} items={tickerItems || []} />
-      <section className="border-b border-zinc-800 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.25),_transparent_35%),linear-gradient(to_bottom,_#064e3b,_#09090b)] px-4 py-12">
+      <section className="border-b border-zinc-800 bg-white/[0.015] px-4 py-12">
         <div className="mx-auto max-w-7xl">
           <p className="text-sm font-black uppercase tracking-[0.35em] text-emerald-300">
             League Letter
@@ -437,46 +441,26 @@ export default async function LeaguePage({
             )}
           </section>
 
-          <section className="rounded-[2rem] border border-zinc-800 bg-zinc-900 p-6">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.25em] text-zinc-500">
-                  Season {selectedSeason} · Week {selectedWeek}
-                </p>
-                <h2 className="text-3xl font-black">Matchups</h2>
-              </div>
-
+          <div>
+            <div className="mb-3 flex justify-end">
               <Link
                 href={`/league/${leagueId}/matchups?season=${selectedSeason}&week=${selectedWeek}`}
                 className="text-sm font-bold text-emerald-400 hover:text-emerald-300"
               >
-                View all →
+                View all matchups →
               </Link>
             </div>
-
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              {Object.entries(groupedMatchups)
-                .slice(0, 4)
-                .map(([matchupId, teams]) => (
-                  <MatchupCard
-                    key={matchupId}
-                    matchupId={matchupId}
-                    teams={teams}
-                    leagueId={leagueId}
-                    selectedSeason={selectedSeason}
-                    teamByRosterId={teamByRosterId}
-                    showProjectedWinChances={showProjectedWinChances}
-                  />
-                ))}
-
-              {!matchups?.length && (
-                <p className="text-zinc-400">
-                  No matchup data found for this season/week. Admin should sync
-                  Sleeper data.
-                </p>
-              )}
-            </div>
-          </section>
+            <LiveMatchupsPanel
+              leagueId={leagueId}
+              selectedSeason={selectedSeason}
+              selectedWeek={selectedWeek}
+              initialMatchups={matchups || []}
+              initialTeams={teams || []}
+              pollLiveScores={pollLiveScores}
+              compact
+              limit={4}
+            />
+          </div>
 
           <section className="rounded-[2rem] border border-zinc-800 bg-zinc-900 p-6">
             <div className="flex items-center justify-between gap-3">
@@ -750,16 +734,13 @@ function MatchupCard({
   return (
     <div className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
       {showProjectedWinChances && prediction && (
-        <div className="mb-4 grid overflow-hidden rounded-2xl border border-zinc-800 md:grid-cols-2">
-          <WinChanceOverlay
-            label={first?.team_name || 'Team A'}
-            chance={prediction.firstChance}
-          />
-          <WinChanceOverlay
-            label={second?.team_name || 'Team B'}
-            chance={prediction.secondChance}
-          />
-        </div>
+        <WinChanceBar
+          firstLabel={first?.team_name || 'Team A'}
+          secondLabel={second?.team_name || 'Team B'}
+          firstChance={prediction.firstChance}
+          secondChance={prediction.secondChance}
+          className="mb-4"
+        />
       )}
 
       <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">
@@ -830,31 +811,89 @@ function formatDateTime(dateString: string) {
   return new Date(dateString).toISOString().replace('T', ' ').slice(0, 16)
 }
 
-function WinChanceOverlay({
-  label,
-  chance,
+function WinChanceBar({
+  firstLabel,
+  secondLabel,
+  firstChance,
+  secondChance,
+  className = '',
+  showNote = false,
 }: {
-  label: string
-  chance: number
+  firstLabel: string
+  secondLabel: string
+  firstChance: number
+  secondChance: number
+  className?: string
+  showNote?: boolean
 }) {
-  const isFavored = chance >= 50
+  const firstWidth = clampChance(firstChance)
+  const secondWidth = clampChance(secondChance)
+  const firstFavored = firstChance >= secondChance
 
   return (
-    <div
-      className={`p-3 ${isFavored
-        ? 'bg-emerald-500/15 text-emerald-300'
-        : 'bg-red-500/10 text-red-300'
-        }`}
-    >
-      <p className="truncate text-xs font-black uppercase tracking-[0.2em]">
-        {label}
-      </p>
-      <p className="mt-1 text-2xl font-black">{chance.toFixed(1)}%</p>
-      <p className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-70">
-        Win chance
-      </p>
+    <div className={`overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 ${className}`}>
+      <div className="flex h-24 w-full overflow-hidden">
+        <div
+          className="relative flex min-w-0 flex-col justify-center overflow-hidden bg-emerald-500/15 px-3 text-emerald-300"
+          style={{ width: `${firstWidth}%` }}
+          title={`${firstLabel}: ${firstChance.toFixed(1)}%`}
+        >
+          <div className="absolute inset-0 bg-emerald-500/10" />
+          <div className="relative min-w-[4rem]">
+            <p className="truncate text-xs font-bold uppercase tracking-[0.2em]">
+              {firstLabel}
+            </p>
+            <p className="mt-1 text-2xl font-black">{firstChance.toFixed(1)}%</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-70">
+              Win chance
+            </p>
+          </div>
+        </div>
+
+        <div
+          className="relative flex min-w-0 flex-col justify-center overflow-hidden bg-red-500/10 px-3 text-red-300"
+          style={{ width: `${secondWidth}%` }}
+          title={`${secondLabel}: ${secondChance.toFixed(1)}%`}
+        >
+          <div className="absolute inset-0 bg-red-500/10" />
+          <div className="relative min-w-[4rem]">
+            <p className="truncate text-xs font-bold uppercase tracking-[0.2em]">
+              {secondLabel}
+            </p>
+            <p className="mt-1 text-2xl font-black">{secondChance.toFixed(1)}%</p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-70">
+              Win chance
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="h-1.5 w-full bg-red-500/20">
+        <div
+          className="h-full bg-emerald-400 transition-all duration-500"
+          style={{ width: `${firstWidth}%` }}
+        />
+      </div>
+
+      <div className="flex items-center justify-between gap-3 border-t border-zinc-800 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">
+        <span className={firstFavored ? 'text-emerald-300' : ''}>{firstLabel}</span>
+        <span className={!firstFavored ? 'text-red-300' : ''}>{secondLabel}</span>
+      </div>
+
+      {showNote && (
+        <div className="border-t border-zinc-800 px-4 py-2">
+          <p className="text-xs text-zinc-500">
+            Projected using last season average points/week and weekly volatility.
+          </p>
+        </div>
+      )}
     </div>
   )
+}
+
+function clampChance(chance: number) {
+  if (!Number.isFinite(chance)) return 50
+  return Math.min(100, Math.max(0, chance))
 }
 
 function calculateWinChances(firstTeam: any, secondTeam: any) {
@@ -930,25 +969,13 @@ function FeaturedWinChanceOverlay({
   if (!prediction) return null
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950">
-      <div className="grid md:grid-cols-2">
-        <WinChanceOverlay
-          label={firstTeam?.team_name || 'Team A'}
-          chance={prediction.firstChance}
-        />
-
-        <WinChanceOverlay
-          label={secondTeam?.team_name || 'Team B'}
-          chance={prediction.secondChance}
-        />
-      </div>
-
-      <div className="border-t border-zinc-800 px-4 py-2">
-        <p className="text-xs text-zinc-500">
-          Projected using last season average points/week and weekly volatility.
-        </p>
-      </div>
-    </div>
+    <WinChanceBar
+      firstLabel={firstTeam?.team_name || 'Team A'}
+      secondLabel={secondTeam?.team_name || 'Team B'}
+      firstChance={prediction.firstChance}
+      secondChance={prediction.secondChance}
+      showNote
+    />
   )
 }
 

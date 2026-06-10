@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/NoPrefetchLink'
 import Navbar from '@/components/Navbar'
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'

@@ -1,7 +1,7 @@
 'use client'
 
-import Link from 'next/link'
-import { Pause, Zap } from 'lucide-react'
+import Link from '@/components/NoPrefetchLink'
+import { Pause, Radio } from 'lucide-react'
 
 type TickerSettings = {
   is_enabled?: boolean
@@ -43,16 +43,22 @@ export default function LeagueTicker({
   if (!tickerSettings.is_enabled || activeItems.length === 0) return null
 
   const speed = Math.max(Number(tickerSettings.speed_seconds || 32), 8)
-  const loopItems = [...activeItems, ...activeItems]
+  const loopItems = [...activeItems, ...activeItems, ...activeItems]
+
   return (
-    <section className="border-b border-emerald-500/20 bg-zinc-950 text-white">
-      <div className="flex overflow-hidden">
-        <div className="league-ticker-shell group relative flex min-w-0 flex-1 items-center overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.14),_transparent_34%),#09090b]">
-          <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-16 bg-gradient-to-r from-zinc-950 to-transparent" />
-          <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-16 bg-gradient-to-l from-zinc-950 to-transparent" />
+    <section className="relative z-30 border-b border-emerald-500/20 bg-[#08090b] text-white">
+      <div className="flex min-h-[3.25rem] items-center overflow-hidden">
+        <div className="hidden shrink-0 items-center gap-2 border-r border-white/10 bg-emerald-500/10 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-300 sm:flex">
+          <Radio size={14} />
+          {tickerSettings.label || 'League Ticker'}
+        </div>
+
+        <div className="league-ticker-shell group relative flex min-w-0 flex-1 items-center overflow-hidden bg-[#101216]">
+          <div className="pointer-events-none absolute left-0 top-0 z-10 h-full w-12 bg-gradient-to-r from-[#101216] to-transparent" />
+          <div className="pointer-events-none absolute right-0 top-0 z-10 h-full w-12 bg-gradient-to-l from-[#101216] to-transparent" />
 
           <div
-            className={`league-ticker-track flex w-max items-center gap-3 py-3 ${
+            className={`league-ticker-track flex min-w-max shrink-0 items-center gap-3 py-3 pl-3 ${
               tickerSettings.pause_on_hover !== false ? 'league-ticker-pausable' : ''
             }`}
             style={{ animationDuration: `${speed}s` }}
@@ -63,35 +69,12 @@ export default function LeagueTicker({
           </div>
 
           {tickerSettings.pause_on_hover !== false && (
-            <div className="pointer-events-none absolute right-4 hidden items-center gap-2 rounded-full border border-white/10 bg-zinc-950/80 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500 backdrop-blur md:group-hover:flex">
+            <div className="pointer-events-none absolute right-4 hidden items-center gap-2 rounded-full border border-white/10 bg-zinc-950/80 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-500 backdrop-blur md:group-hover:flex">
               <Pause size={11} /> Hover to read
             </div>
           )}
         </div>
       </div>
-
-      <style jsx>{`
-        .league-ticker-track {
-          animation-name: league-ticker-marquee;
-          animation-timing-function: linear;
-          animation-iteration-count: infinite;
-          animation-play-state: running;
-          will-change: transform;
-        }
-
-        .league-ticker-shell:hover .league-ticker-pausable {
-          animation-play-state: paused;
-        }
-
-        @keyframes league-ticker-marquee {
-          from {
-            transform: translateX(0);
-          }
-          to {
-            transform: translateX(-50%);
-          }
-        }
-      `}</style>
     </section>
   )
 }
@@ -101,7 +84,7 @@ function TickerItemPill({ item }: { item: TickerItem }) {
     <span className="inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5 text-sm font-bold text-zinc-100 shadow-lg shadow-black/20 transition hover:border-emerald-400/70 hover:bg-emerald-400/10">
       <span className="text-base">{item.emoji || '⚡'}</span>
       <span>{item.text}</span>
-      <Zap size={13} className="text-emerald-400" />
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
     </span>
   )
 
