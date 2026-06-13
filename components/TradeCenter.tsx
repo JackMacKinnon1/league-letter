@@ -249,9 +249,9 @@ export default function TradeCenter({
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white">
+    <main className="min-h-screen overflow-x-hidden bg-zinc-950 text-white">
       <section className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.18),_transparent_30%),radial-gradient(circle_at_top_right,_rgba(59,130,246,0.12),_transparent_28%),linear-gradient(135deg,_#07080a,_#0d1118_58%,_#071a17)] px-4 py-6 sm:py-9">
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-7xl min-w-0">
           <Link
             href={`/league/${leagueId}`}
             className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-zinc-300 transition hover:border-emerald-400/40 hover:text-white"
@@ -290,28 +290,41 @@ export default function TradeCenter({
         </div>
       </section>
 
-      <section className="border-b border-white/10 bg-zinc-950/95 px-4 py-3">
-        <div className="mx-auto flex max-w-7xl gap-3 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {latestTrades.map((trade, index) => (
-            <span
-              key={`${trade.id}-ticker-${index}`}
-              className="shrink-0 rounded-full border border-zinc-800 bg-zinc-900 px-4 py-2 text-[0.68rem] font-black uppercase tracking-[0.16em] text-zinc-300 sm:text-xs"
-            >
-              <span className="text-emerald-400">TRADE ALERT</span>{" "}
-              {formatTradeHeadline(trade, teamByRosterId)}
-            </span>
-          ))}
-          {!trades.length && (
-            <span className="rounded-full border border-zinc-800 bg-zinc-900 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-zinc-300">
+      <section className="border-b border-white/10 bg-zinc-950/95">
+        <div className="mx-auto flex max-w-7xl min-w-0 items-center overflow-hidden px-3 py-2 sm:px-4">
+          <div className="mr-3 hidden shrink-0 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1.5 text-[0.62rem] font-black uppercase tracking-[0.18em] text-emerald-300 sm:block">
+            Trade Wire
+          </div>
+          {latestTrades.length ? (
+            <div className="league-ticker-shell relative min-w-0 flex-1 overflow-hidden rounded-full border border-zinc-800 bg-zinc-900/80">
+              <div
+                className="league-ticker-track flex min-w-max items-center gap-3 py-2 pl-3"
+                style={{ animationDuration: "38s" }}
+              >
+                {[...latestTrades, ...latestTrades, ...latestTrades].map(
+                  (trade, index) => (
+                    <span
+                      key={`${trade.id}-ticker-${index}`}
+                      className="shrink-0 rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-[0.62rem] font-black uppercase tracking-[0.14em] text-zinc-300 sm:px-4 sm:text-xs"
+                    >
+                      <span className="text-emerald-400">Trade Alert</span>{" "}
+                      {formatTradeHeadline(trade, teamByRosterId)}
+                    </span>
+                  ),
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="min-w-0 flex-1 rounded-full border border-zinc-800 bg-zinc-900 px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-zinc-300">
               No trades found yet
-            </span>
+            </div>
           )}
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-5 px-4 py-5 sm:py-8 lg:grid-cols-[360px_1fr] xl:grid-cols-[400px_1fr]">
-        <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
-          <div className="rounded-[1.35rem] border border-zinc-800 bg-zinc-900/85 p-4 shadow-2xl sm:p-5">
+      <section className="mx-auto grid w-full max-w-7xl min-w-0 gap-4 overflow-hidden px-3 py-4 sm:gap-5 sm:px-4 sm:py-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
+        <aside className="min-w-0 space-y-4 overflow-hidden sm:space-y-5 lg:sticky lg:top-24 lg:self-start">
+          <div className="rounded-[1.35rem] border border-zinc-800 bg-zinc-900/85 p-4 shadow-2xl sm:p-5 overflow-hidden">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400">
                 <GitBranch size={22} />
@@ -327,7 +340,7 @@ export default function TradeCenter({
             <select
               value={selectedAssetKey}
               onChange={(event) => setSelectedAssetKey(event.target.value)}
-              className="mt-5 w-full rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm font-bold outline-none transition focus:border-emerald-500"
+              className="mt-5 w-full min-w-0 truncate rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-sm font-bold outline-none transition focus:border-emerald-500"
             >
               {assetOptions.map((asset) => (
                 <option key={asset.key} value={asset.key}>
@@ -340,7 +353,7 @@ export default function TradeCenter({
               {selectedAssetTimeline.map((move, index) => (
                 <div
                   key={`${move.tradeId}-${move.key}-${index}`}
-                  className="relative pl-8"
+                  className="relative min-w-0 pl-7 sm:pl-8"
                 >
                   {index !== selectedAssetTimeline.length - 1 && (
                     <div className="absolute bottom-[-1rem] left-[0.65rem] top-7 w-px bg-zinc-800" />
@@ -349,11 +362,11 @@ export default function TradeCenter({
                     <ArrowRight size={13} />
                   </div>
 
-                  <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+                  <div className="min-w-0 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 p-3 sm:p-4">
                     <p className="text-[0.68rem] font-black uppercase tracking-[0.18em] text-emerald-400">
                       {move.season || "Unknown"} · Week {move.week || "?"}
                     </p>
-                    <div className="mt-3 flex items-center gap-3">
+                    <div className="mt-3 flex min-w-0 items-center gap-3">
                       <AssetAvatar asset={assetDisplayFromMove(move)} />
                       <h3 className="min-w-0 flex-1 truncate font-black">
                         {move.label}
@@ -381,7 +394,7 @@ export default function TradeCenter({
             </div>
           </div>
 
-          <div className="rounded-[1.35rem] border border-zinc-800 bg-zinc-900/85 p-4 sm:p-5">
+          <div className="min-w-0 overflow-hidden rounded-[1.35rem] border border-zinc-800 bg-zinc-900/85 p-4 sm:p-5">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-300">
                 <Trophy size={21} />
@@ -421,9 +434,9 @@ export default function TradeCenter({
           </div>
         </aside>
 
-        <div className="space-y-5">
-          <div className="rounded-[1.35rem] border border-zinc-800 bg-zinc-900/85 p-4 shadow-2xl sm:p-5">
-            <div className="grid gap-3 lg:grid-cols-[1fr_170px_190px]">
+        <div className="min-w-0 space-y-5 overflow-hidden">
+          <div className="min-w-0 overflow-hidden rounded-[1.35rem] border border-zinc-800 bg-zinc-900/85 p-4 shadow-2xl sm:p-5">
+            <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_170px_190px]">
               <label className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3">
                 <Search size={18} className="text-zinc-500" />
                 <input
@@ -465,7 +478,7 @@ export default function TradeCenter({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+          <div className="grid min-w-0 grid-cols-3 gap-2 sm:gap-4">
             <MetricCard
               icon={<Handshake size={22} />}
               label="Showing"
@@ -553,7 +566,7 @@ function TradeCard({
   const assetCount = getAssetMoves(trade, players, teamByRosterId).length;
 
   return (
-    <article className="overflow-hidden rounded-[1.35rem] border border-zinc-800 bg-zinc-900/85 shadow-xl transition hover:border-zinc-700">
+    <article className="min-w-0 overflow-hidden rounded-[1.35rem] border border-zinc-800 bg-zinc-900/85 shadow-xl transition hover:border-zinc-700">
       <button
         type="button"
         onClick={onToggle}
@@ -581,7 +594,7 @@ function TradeCard({
       {isOpen && (
         <div className="border-t border-zinc-800 p-3 sm:p-5">
           <div
-            className={`grid gap-3 ${columns.length === 2 ? "md:grid-cols-2" : "md:grid-cols-2 xl:grid-cols-3"}`}
+            className={`grid gap-3 ${columns.length === 2 ? "lg:grid-cols-2" : "lg:grid-cols-2 xl:grid-cols-3"}`}
           >
             {columns.map((column) => {
               const team = teamByRosterId.get(Number(column.rosterId));
@@ -764,7 +777,7 @@ function AssetAvatar({ asset }: { asset: AssetDisplay }) {
 function HeroStat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="min-w-0 rounded-2xl bg-zinc-950/60 p-3 ring-1 ring-white/10 sm:p-4">
-      <p className="truncate text-xl font-black sm:text-2xl">{value}</p>
+      <p className="min-w-0 truncate text-lg font-black sm:text-2xl">{value}</p>
       <p className="mt-1 truncate text-[0.62rem] font-bold uppercase tracking-[0.14em] text-zinc-500 sm:text-xs">
         {label}
       </p>
@@ -806,7 +819,7 @@ function Superlative({
       <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-500">
         {label}
       </p>
-      <p className="mt-2 text-sm font-black text-zinc-200 sm:text-base">
+      <p className="mt-2 min-w-0 break-words text-sm font-black text-zinc-200 sm:text-base">
         {value}
       </p>
     </div>
@@ -816,7 +829,7 @@ function Superlative({
 function TeamPill({ name, muted }: { name: string; muted?: boolean }) {
   return (
     <span
-      className={`min-w-0 max-w-full truncate rounded-full px-3 py-1 text-xs ${muted ? "bg-zinc-900 text-zinc-400" : "bg-emerald-500 text-zinc-950"}`}
+      className={`inline-block min-w-0 max-w-full truncate rounded-full px-3 py-1 text-[0.68rem] font-black ${muted ? "bg-zinc-900 text-zinc-400" : "bg-emerald-500 text-zinc-950"}`}
     >
       {name}
     </span>
