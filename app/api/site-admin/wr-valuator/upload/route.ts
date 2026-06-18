@@ -1,1 +1,1 @@
-export { POST } from '../../player-scores/upload/route'
+export { GET, POST } from '../../player-scores/upload/route'

@@ -1,35 +1,121 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { parsePlayerScoreWorkbook, PlayerPosition } from '@/lib/playerScoreWorkbook'
+import {
+  buildPlayerScoresFromRawRows,
+  DEFAULT_PLAYER_SCORE_WEIGHTS,
+  parsePlayerScoreWorkbook,
+  PlayerPosition,
+  PlayerScoreWeights,
+} from '@/lib/playerScoreWorkbook'
 
 export const dynamic = 'force-dynamic'
 
 const SITE_ADMIN_EMAIL = 'mackinnonjack4@gmail.com'
 const VALID_POSITIONS = new Set(['WR', 'TE', 'QB', 'RB'])
 
+async function requireSiteAdmin(): Promise<{ error?: NextResponse }> {
+  const supabaseUserClient = await createClient()
+
+  const {
+    data: { user },
+  } = await supabaseUserClient.auth.getUser()
+
+  if (!user || user.email !== SITE_ADMIN_EMAIL) {
+    return { error: NextResponse.json({ error: 'Unauthorized.' }, { status: 403 }) }
+  }
+
+  return {}
+}
+
+export async function GET(request: Request) {
+  try {
+    const auth = await requireSiteAdmin()
+    if (auth.error) return auth.error
+
+    const { searchParams } = new URL(request.url)
+    const position = String(searchParams.get('position') || 'WR').trim().toUpperCase()
+    const uploadIdParam = String(searchParams.get('uploadId') || '').trim()
+
+    if (!VALID_POSITIONS.has(position)) {
+      return NextResponse.json(
+        { error: 'Position must be WR, TE, QB, or RB.' },
+        { status: 400 }
+      )
+    }
+
+    const supabase = createAdminClient()
+
+    let uploadQuery = supabase
+      .from('player_score_uploads')
+      .select('id, position, file_name, upload_label, uploaded_at, summary')
+      .eq('position', position)
+      .order('uploaded_at', { ascending: false })
+      .limit(1)
+
+    if (uploadIdParam) uploadQuery = uploadQuery.eq('id', uploadIdParam)
+
+    const { data: uploads, error: uploadError } = await uploadQuery
+    if (uploadError) throw new Error(uploadError.message)
+
+    const upload = uploads?.[0]
+    if (!upload) {
+      return NextResponse.json({
+        upload: null,
+        rawRows: [],
+        rankings: [],
+        weights: DEFAULT_PLAYER_SCORE_WEIGHTS,
+      })
+    }
+
+    const { data: rankings, error: rankingsError } = await supabase
+      .from('player_score_rankings')
+      .select('*')
+      .eq('upload_id', upload.id)
+      .eq('position', position)
+      .order('rank', { ascending: true })
+
+    if (rankingsError) throw new Error(rankingsError.message)
+
+    const rawRowsByKey = new Map<string, Record<string, any>>()
+
+    for (const ranking of rankings || []) {
+      const rawRows = ranking.advanced_stats?.rawRows || []
+      for (const row of rawRows) {
+        const key = `${ranking.player_key}-${row.Year || row.Season || ''}`
+        if (!rawRowsByKey.has(key)) rawRowsByKey.set(key, row)
+      }
+    }
+
+    return NextResponse.json({
+      upload,
+      rawRows: Array.from(rawRowsByKey.values()),
+      rankings: rankings || [],
+      weights: upload.summary?.weights || DEFAULT_PLAYER_SCORE_WEIGHTS,
+    })
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error?.message || 'Failed to load saved WR valuator data.' },
+      { status: 500 }
+    )
+  }
+}
+
 export async function POST(request: Request) {
   try {
-    const supabaseUserClient = await createClient()
-
-    const {
-      data: { user },
-    } = await supabaseUserClient.auth.getUser()
-
-    if (!user || user.email !== SITE_ADMIN_EMAIL) {
-      return NextResponse.json({ error: 'Unauthorized.' }, { status: 403 })
-    }
+    const auth = await requireSiteAdmin()
+    if (auth.error) return auth.error
 
     const formData = await request.formData()
     const uploadLabel = String(formData.get('uploadLabel') || '').trim()
     const position = String(formData.get('position') || '').trim().toUpperCase()
     const file = formData.get('file') as File | null
+    const rawRowsJson = String(formData.get('rawRows') || '').trim()
+    const weightsJson = String(formData.get('weights') || '').trim()
+    const previewOnly = String(formData.get('previewOnly') || '').trim() === 'true'
 
-    if (!position || !file) {
-      return NextResponse.json(
-        { error: 'Position and Excel workbook are required.' },
-        { status: 400 }
-      )
+    if (!position) {
+      return NextResponse.json({ error: 'Position is required.' }, { status: 400 })
     }
 
     if (!VALID_POSITIONS.has(position)) {
@@ -39,10 +125,50 @@ export async function POST(request: Request) {
       )
     }
 
-    const parsed = await parsePlayerScoreWorkbook({
-      file,
-      position: position as PlayerPosition,
-    })
+    const weights = parseWeights(weightsJson)
+
+    const parsed = rawRowsJson
+      ? buildPlayerScoresFromRawRows({
+          rawRows: JSON.parse(rawRowsJson),
+          position: position as PlayerPosition,
+          weights,
+        })
+      : file
+        ? await parsePlayerScoreWorkbook({
+            file,
+            position: position as PlayerPosition,
+            weights,
+          })
+        : null
+
+    if (!parsed) {
+      return NextResponse.json(
+        { error: 'Upload a Raw Data workbook or submit edited raw rows.' },
+        { status: 400 }
+      )
+    }
+
+    if (previewOnly) {
+      return NextResponse.json({
+        success: true,
+        previewOnly: true,
+        uploadId: '',
+        uploadedAt: new Date().toISOString(),
+        position,
+        fileName: file?.name || 'manual-raw-data-preview',
+        rowsStored: parsed.rows.length,
+        rawRows: parsed.rawRows,
+        weights: parsed.weights,
+        summary: parsed.summary,
+        rankings: parsed.rows,
+        topFive: parsed.rows.slice(0, 5).map((row) => ({
+          rank: row.rank,
+          player_name: row.player_name,
+          team: row.team,
+          score: row.score,
+        })),
+      })
+    }
 
     const supabase = createAdminClient()
 
@@ -50,8 +176,8 @@ export async function POST(request: Request) {
       .from('player_score_uploads')
       .insert({
         position,
-        file_name: file.name,
-        upload_label: uploadLabel || file.name,
+        file_name: file?.name || 'manual-raw-data-update',
+        upload_label: uploadLabel || file?.name || `Manual ${position} update`,
         summary: parsed.summary,
       })
       .select('id, uploaded_at')
@@ -86,8 +212,10 @@ export async function POST(request: Request) {
       uploadId: upload.id,
       uploadedAt: upload.uploaded_at,
       position,
-      fileName: file.name,
+      fileName: file?.name || 'manual-raw-data-update',
       rowsStored: parsed.rows.length,
+      rawRows: parsed.rawRows,
+      weights: parsed.weights,
       summary: parsed.summary,
       topFive: parsed.rows.slice(0, 5).map((row) => ({
         rank: row.rank,
@@ -98,8 +226,14 @@ export async function POST(request: Request) {
     })
   } catch (error: any) {
     return NextResponse.json(
-      { error: error?.message || 'Failed to import player scores workbook.' },
+      { error: error?.message || 'Failed to calculate and import player scores.' },
       { status: 500 }
     )
   }
+}
+
+function parseWeights(value: string): Partial<PlayerScoreWeights> | undefined {
+  if (!value) return undefined
+  const parsed = JSON.parse(value)
+  return parsed && typeof parsed === 'object' ? parsed : undefined
 }

@@ -144,7 +144,7 @@ export default function PlayerScoresPage() {
                 Player Scores
               </h1>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-400">
-                Rankings are displayed exactly from your uploaded Excel workbook’s Final Rankings sheet. Click any player to view the advanced Raw Data stats saved from that upload.
+                Rankings are calculated from the uploaded Raw Data and the saved WR Valuator weights. Click any player to view the advanced Raw Data stats saved from that import.
               </p>
               {selectedUpload && (
                 <p className="mt-2 text-xs font-bold text-zinc-500">
