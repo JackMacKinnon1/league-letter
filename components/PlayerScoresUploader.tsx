@@ -886,6 +886,7 @@ function calculatePreviewRankings(rawRows: RawRow[], position: string, weights: 
       player_name: getRowString(latest, ['Name', 'Player', 'Player Name']),
       team: getRowString(latest, ['Team', 'Tm']) || null,
       score: calculatePreviewFinalScore({
+        //@ts-ignore
         targetSeasons: seasons,
         seasonScores,
         birthDate: getRowDate(latest, ['Birth Date', 'DOB', 'Date of Birth']),
