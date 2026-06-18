@@ -215,6 +215,7 @@ export function buildPlayerScoresFromRawRows({
     }
 
     const finalScore = calculateFinalScore({
+      //@ts-ignore
       targetSeasons,
       seasonScoreBySeason,
       birthDate: getDate(latestRawRow || {}, ['Birth Date', 'DOB', 'Date of Birth']),
@@ -272,6 +273,7 @@ export function buildPlayerScoresFromRawRows({
       rawDataSheet: rawDataSheetName,
       finalRankingsSheet: null,
       calculatedFromRawData: true,
+      //@ts-ignore
       seasons: targetSeasons,
       weights: mergedWeights,
     },
