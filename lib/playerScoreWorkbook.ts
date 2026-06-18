@@ -64,6 +64,10 @@ export type WorkbookParseResult = {
 const RAW_DATA_SHEET_NAMES = ['raw data', 'rawdata', 'data']
 const RAW_DATA_SHEET_KEYS = RAW_DATA_SHEET_NAMES.map(normalizeHeader)
 
+function isNonEmptyString(value: string | null | undefined): value is string {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
 const CORE_STAT_KEYS = [
   'G',
   'Season',
@@ -194,11 +198,15 @@ export function buildPlayerScoresFromRawRows({
 
   const rowsWithSeasonScores = calculateSeasonRawScores(cleanedRows, mergedWeights)
   const rowsByPlayer = groupRawRowsByPlayer(rowsWithSeasonScores)
-  const seasons = Array.from(
-    new Set(rowsWithSeasonScores.map((row) => getSeason(row)).filter(Boolean))
+  const seasons: string[] = Array.from(
+    new Set(
+      rowsWithSeasonScores
+        .map((row) => getSeason(row))
+        .filter(isNonEmptyString)
+    )
   ).sort((a, b) => Number(b) - Number(a))
 
-  const targetSeasons = seasons.slice(0, 3)
+  const targetSeasons: string[] = seasons.slice(0, 3)
   const rows: ParsedRankingRow[] = []
 
   for (const [playerKey, playerRows] of rowsByPlayer.entries()) {
@@ -215,7 +223,6 @@ export function buildPlayerScoresFromRawRows({
     }
 
     const finalScore = calculateFinalScore({
-      //@ts-ignore
       targetSeasons,
       seasonScoreBySeason,
       birthDate: getDate(latestRawRow || {}, ['Birth Date', 'DOB', 'Date of Birth']),
@@ -273,7 +280,6 @@ export function buildPlayerScoresFromRawRows({
       rawDataSheet: rawDataSheetName,
       finalRankingsSheet: null,
       calculatedFromRawData: true,
-      //@ts-ignore
       seasons: targetSeasons,
       weights: mergedWeights,
     },
@@ -359,33 +365,76 @@ function calculateFinalScore({
   birthDate: Date | null
   weights: PlayerScoreWeights
 }) {
-  const [currentSeason, previousSeason, twoAgoSeason] = targetSeasons
-  const hasCurrent = currentSeason ? seasonScoreBySeason.has(currentSeason) : false
-  const hasPrevious = previousSeason ? seasonScoreBySeason.has(previousSeason) : false
-  const hasTwoAgo = twoAgoSeason ? seasonScoreBySeason.has(twoAgoSeason) : false
+  const currentSeason = targetSeasons[0]
+  const previousSeason = targetSeasons[1]
+  const twoAgoSeason = targetSeasons[2]
 
+  const hasCurrent = isNonEmptyString(currentSeason) && seasonScoreBySeason.has(currentSeason)
+  const hasPrevious = isNonEmptyString(previousSeason) && seasonScoreBySeason.has(previousSeason)
+  const hasTwoAgo = isNonEmptyString(twoAgoSeason) && seasonScoreBySeason.has(twoAgoSeason)
+
+  const getSeasonScore = (season: string | undefined) => {
+    if (!isNonEmptyString(season)) return 0
+    return Number(seasonScoreBySeason.get(season) ?? 0)
+  }
+
+  const currentScore = getSeasonScore(currentSeason)
+  const previousScore = getSeasonScore(previousSeason)
+  const twoAgoScore = getSeasonScore(twoAgoSeason)
+
+  // Rookie handling:
+  // - 2025 rookie: has current year, but no previous/two-ago seasons. Only current counts.
+  // - 2024 rookie: has previous year, but no two-ago season. Current + previous count.
+  // - Non-rookies: all 3 season slots count. Missing seasons are filled below.
   const isCurrentSeasonRookie = hasCurrent && !hasPrevious && !hasTwoAgo
   const isPreviousSeasonRookie = hasPrevious && !hasTwoAgo
 
-  const includedSeasonSlots = isCurrentSeasonRookie
-    ? ([
-        { hasSeason: hasCurrent, score: Number(seasonScoreBySeason.get(currentSeason) || 0), weight: weights.seasonWeights.current },
-      ])
+  const includedSeasonSlots: Array<{ hasSeason: boolean; score: number; weight: number }> = isCurrentSeasonRookie
+    ? [
+        {
+          hasSeason: hasCurrent,
+          score: currentScore,
+          weight: weights.seasonWeights.current,
+        },
+      ]
     : isPreviousSeasonRookie
-      ? ([
-          { hasSeason: hasCurrent, score: Number(seasonScoreBySeason.get(currentSeason) || 0), weight: weights.seasonWeights.current },
-          { hasSeason: hasPrevious, score: Number(seasonScoreBySeason.get(previousSeason) || 0), weight: weights.seasonWeights.previous },
-        ])
-      : ([
-          { hasSeason: hasCurrent, score: Number(seasonScoreBySeason.get(currentSeason) || 0), weight: weights.seasonWeights.current },
-          { hasSeason: hasPrevious, score: Number(seasonScoreBySeason.get(previousSeason) || 0), weight: weights.seasonWeights.previous },
-          { hasSeason: hasTwoAgo, score: Number(seasonScoreBySeason.get(twoAgoSeason) || 0), weight: weights.seasonWeights.twoAgo },
-        ])
+      ? [
+          {
+            hasSeason: hasCurrent,
+            score: currentScore,
+            weight: weights.seasonWeights.current,
+          },
+          {
+            hasSeason: hasPrevious,
+            score: previousScore,
+            weight: weights.seasonWeights.previous,
+          },
+        ]
+      : [
+          {
+            hasSeason: hasCurrent,
+            score: currentScore,
+            weight: weights.seasonWeights.current,
+          },
+          {
+            hasSeason: hasPrevious,
+            score: previousScore,
+            weight: weights.seasonWeights.previous,
+          },
+          {
+            hasSeason: hasTwoAgo,
+            score: twoAgoScore,
+            weight: weights.seasonWeights.twoAgo,
+          },
+        ]
 
   const realSeasonScores = includedSeasonSlots
     .filter((slot) => slot.hasSeason && Number.isFinite(slot.score))
     .map((slot) => slot.score)
 
+  // For non-rookies with 2 real seasons, fill the missed season with the average
+  // of the 2 real seasons. For non-rookies with only 1 real season, use the
+  // configurable missingSeasonScore, which defaults to 3500.
   const missingScore = realSeasonScores.length >= 2
     ? realSeasonScores.reduce((total, score) => total + score, 0) / realSeasonScores.length
     : weights.missingSeasonScore
@@ -399,9 +448,9 @@ function calculateFinalScore({
     ? weightedScoreTotal / denominator
     : 0
 
-  const currentRealScore = hasCurrent ? Number(seasonScoreBySeason.get(currentSeason) || 0) : null
-  const previousRealScore = hasPrevious ? Number(seasonScoreBySeason.get(previousSeason) || 0) : null
-  const twoAgoRealScore = hasTwoAgo ? Number(seasonScoreBySeason.get(twoAgoSeason) || 0) : null
+  const currentRealScore = hasCurrent ? currentScore : null
+  const previousRealScore = hasPrevious ? previousScore : null
+  const twoAgoRealScore = hasTwoAgo ? twoAgoScore : null
 
   const eliteMultiplier = 1 + Math.max(
     currentRealScore !== null && currentRealScore > weights.eliteThreshold ? weights.eliteBoost * weights.eliteDecay.current : 0,
