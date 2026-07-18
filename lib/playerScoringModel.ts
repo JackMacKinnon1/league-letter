@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx'
 
 export type PlayerPosition = 'WR' | 'TE' | 'QB' | 'RB'
 
-type MetricCategory = 'Yards' | 'YPRR' | 'PFF' | 'First Read' | 'MTF' | 'Age'
+type MetricCategory = 'Yards' | 'YPRR' | 'PFF' | 'First Read' | 'Target Share' | 'MTF' | 'Age'
 
 type MetricConfig = {
   key: string
@@ -52,7 +52,7 @@ const POSITION_CONFIGS: Record<PlayerPosition, MetricConfig[]> = {
     metric('YPRR', 'YPRR', ['YPRR'], 0.25, 'YPRR'),
     metric('PFFReceivingGrade', 'PFF', ['Receiving_Grade', 'Receiving Grade', 'grades_pass_route', 'PFF Grade', 'PFF'], 0.15, 'PFF'),
     metric('FirstReadShare', 'First Read %', ['1READ %', '1Read %', 'First Read %', 'First Rd %'], 0.1, 'First Read'),
-    metric('MTFPerRec', 'MTF/REC', ['MTF/REC', 'MTF Per Rec'], 0.05, 'MTF'),
+    metric('TargetShare', 'Target Share', ['TGT %', 'TGT%', 'Target Share', 'TargetShare'], 0.05, 'Target Share'),
     ageMetric(),
   ],
 
@@ -88,6 +88,7 @@ const IGNORED_CALCULATED_COLUMNS = new Set([
   'yards%',
   'yprr%',
   'mtf%',
+  'targetshare%',
   'firstrd%',
   'pff%',
   'rawscore',

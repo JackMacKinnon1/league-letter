@@ -1,8 +1,13 @@
 'use client'
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { ChevronLeft, ChevronRight, Database, Search, Trophy, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Database, Info, Search, Trophy, X } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { useEffect, useMemo, useState } from 'react'
+
+const WRCalculationModal = dynamic(() => import('@/components/WRCalculationModal'), {
+  ssr: false,
+})
 
 type ScoreRow = {
   id: string
@@ -54,7 +59,6 @@ const SEASON_TABLE_STATS = [
   'YPRR',
   'Receiving_Grade',
   '1READ %',
-  'MTF/REC',
   'TGT %',
   'TPRR',
   'FP/G',
@@ -66,7 +70,6 @@ const FEATURED_STATS = [
   'YPRR',
   'Receiving_Grade',
   '1READ %',
-  'MTF/REC',
   'TGT %',
   'TPRR',
   'REC',
@@ -81,6 +84,7 @@ export default function PlayerScoresPage() {
   const [selectedUpload, setSelectedUpload] = useState<UploadOption | null>(null)
   const [rows, setRows] = useState<ScoreRow[]>([])
   const [selectedPlayer, setSelectedPlayer] = useState<ScoreRow | null>(null)
+  const [showCalculationModal, setShowCalculationModal] = useState(false)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -90,6 +94,12 @@ export default function PlayerScoresPage() {
 
   useEffect(() => {
     const controller = new AbortController()
+    let timedOut = false
+
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, 20000)
 
     async function loadScores() {
       setLoading(true)
@@ -108,7 +118,8 @@ export default function PlayerScoresPage() {
         const response = await fetch(`/api/player-scores?${params.toString()}`, {
           signal: controller.signal,
         })
-        const json = await response.json()
+        const responseText = await response.text()
+        const json = responseText ? JSON.parse(responseText) : {}
 
         if (!response.ok) throw new Error(json.error || 'Failed to load scores.')
 
@@ -119,14 +130,24 @@ export default function PlayerScoresPage() {
         setSelectedUpload(json.selectedUpload || null)
         setUploadId(json.uploadId || uploadId)
       } catch (err: any) {
-        if (err.name !== 'AbortError') setError(err.message || 'Failed to load scores.')
+        if (err.name === 'AbortError') {
+          if (timedOut) {
+            setError('Loading rankings timed out. Refresh the page and try again.')
+          }
+        } else {
+          setError(err.message || 'Failed to load scores.')
+        }
       } finally {
+        window.clearTimeout(timeoutId)
         setLoading(false)
       }
     }
 
     loadScores()
-    return () => controller.abort()
+    return () => {
+      window.clearTimeout(timeoutId)
+      controller.abort()
+    }
   }, [position, uploadId, page, search])
 
   const topThree = useMemo(() => rows.slice(0, 3), [rows])
@@ -150,6 +171,16 @@ export default function PlayerScoresPage() {
                 <p className="mt-2 text-xs font-bold text-zinc-500">
                   Showing {selectedUpload.upload_label || selectedUpload.file_name || 'latest upload'} · uploaded {formatDate(selectedUpload.uploaded_at)}
                 </p>
+              )}
+              {position === 'WR' && (
+                <button
+                  type="button"
+                  onClick={() => setShowCalculationModal(true)}
+                  className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-2.5 text-sm font-black text-emerald-200 transition hover:border-emerald-300 hover:bg-emerald-400/15 hover:text-white"
+                >
+                  <Info size={17} />
+                  How is this calculated?
+                </button>
               )}
             </div>
 
@@ -323,6 +354,12 @@ export default function PlayerScoresPage() {
       <AnimatePresence>
         {selectedPlayer && (
           <PlayerStatsModal player={selectedPlayer} onClose={() => setSelectedPlayer(null)} />
+        )}
+        {showCalculationModal && (
+          <WRCalculationModal
+            onClose={() => setShowCalculationModal(false)}
+            weights={(selectedUpload?.summary?.weights as any) || null}
+          />
         )}
       </AnimatePresence>
     </main>

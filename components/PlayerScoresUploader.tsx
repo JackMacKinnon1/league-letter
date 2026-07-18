@@ -2,7 +2,8 @@
 
 import { AnimatePresence, motion } from 'framer-motion'
 import { CheckCircle2, Database, FileSpreadsheet, Loader2, Plus, RotateCcw, Save, Upload, X } from 'lucide-react'
-import { ReactNode, Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { Dispatch, ReactNode, SetStateAction } from 'react'
 
 const POSITIONS = ['WR', 'TE', 'QB', 'RB'] as const
 
@@ -12,7 +13,7 @@ const DEFAULT_WEIGHTS = {
     pff: 0.15,
     yards: 0.45,
     firstRead: 0.1,
-    mtfPerRec: 0.05,
+    targetShare: 0.05,
   },
   seasonWeights: {
     current: 0.6,
@@ -92,7 +93,7 @@ const IMPORTANT_COLUMNS = [
   'Season',
   'RecYDS/G',
   'YPRR',
-  'MTF/REC',
+  'TGT %',
   '1READ %',
   'Receiving_Grade',
   'Birth Date',
@@ -114,9 +115,16 @@ export default function PlayerScoresUploader() {
   const [previewDirty, setPreviewDirty] = useState(false)
   const [draftRow, setDraftRow] = useState<RawRow | null>(null)
   const previewRef = useRef<HTMLDivElement | null>(null)
+  const uploadPanelRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
+    let timedOut = false
+
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, 20000)
 
     async function loadExistingData() {
       setPreloadLoading(true)
@@ -139,15 +147,33 @@ export default function PlayerScoresUploader() {
         setUploadLabel(json.upload?.upload_label ? `${json.upload.upload_label} updated` : '')
         setResult(null)
       } catch (error: any) {
-        if (error.name !== 'AbortError') setMessage(error.message || 'Failed to load existing data.')
+        if (error.name === 'AbortError') {
+          if (timedOut) {
+            setMessage('Loading the saved WR data timed out. Refresh the page and try again.')
+          }
+        } else {
+          setMessage(error.message || 'Failed to load existing data.')
+        }
       } finally {
+        window.clearTimeout(timeoutId)
         setPreloadLoading(false)
       }
     }
 
     loadExistingData()
-    return () => controller.abort()
+    return () => {
+      window.clearTimeout(timeoutId)
+      controller.abort()
+    }
   }, [position])
+
+  useEffect(() => {
+    if (!showUpload) return
+    const frame = window.requestAnimationFrame(() => {
+      uploadPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [showUpload])
 
   const editableColumns = useMemo(() => {
     const existingColumns = Array.from(new Set(rawRows.flatMap((row) => Object.keys(row))))
@@ -276,7 +302,7 @@ export default function PlayerScoresUploader() {
       Season: new Date().getFullYear(),
       'RecYDS/G': '',
       YPRR: '',
-      'MTF/REC': '',
+      'TGT %': '',
       '1READ %': '',
       Receiving_Grade: '',
       'Birth Date': '',
@@ -345,13 +371,17 @@ export default function PlayerScoresUploader() {
 
           <div className="flex flex-wrap gap-2">
             <button
+              type="button"
               onClick={() => setShowUpload((value) => !value)}
+              aria-expanded={showUpload}
+              aria-controls="wr-upload-panel"
               className="flex items-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-black text-white transition hover:border-emerald-300"
             >
               <Upload size={16} />
               Upload New Data
             </button>
             <button
+              type="button"
               onClick={() => setWeights(DEFAULT_WEIGHTS)}
               className="flex items-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-black text-white transition hover:border-emerald-300"
             >
@@ -399,7 +429,11 @@ export default function PlayerScoresUploader() {
         </div>
 
         {showUpload && (
-          <div className="mt-5 rounded-[1.5rem] border border-dashed border-zinc-700 bg-zinc-900 p-4">
+          <div
+            id="wr-upload-panel"
+            ref={uploadPanelRef}
+            className="mt-5 rounded-[1.5rem] border border-dashed border-zinc-700 bg-zinc-900 p-4"
+          >
             <label className="text-xs font-black uppercase tracking-[0.18em] text-zinc-500">
               Raw Data workbook
             </label>
@@ -410,6 +444,7 @@ export default function PlayerScoresUploader() {
               className="mt-2 w-full rounded-2xl border border-dashed border-zinc-700 bg-zinc-950 px-4 py-3 text-sm text-zinc-300 file:mr-4 file:rounded-xl file:border-0 file:bg-emerald-400 file:px-3 file:py-2 file:font-black file:text-zinc-950"
             />
             <button
+              type="button"
               onClick={uploadFile}
               disabled={loading}
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-400 py-3 font-black text-zinc-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
@@ -751,7 +786,7 @@ function WeightsEditor({
     <div className="mt-6 rounded-[1.5rem] border border-zinc-800 bg-zinc-900 p-4">
       <h3 className="text-lg font-black text-white">Calculation Weights</h3>
       <p className="mt-1 text-sm text-zinc-500">
-        These replace the workbook’s Weights tab. The upload route uses these values when calculating raw season scores, recency weighting, elite-season boost, and age multipliers.
+        These replace the workbook’s Weights tab. The upload route uses target share (TGT %) instead of MTF/REC when calculating raw season scores, then applies recency weighting, elite-season boost, and age multipliers.
       </p>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
@@ -760,7 +795,7 @@ function WeightsEditor({
           <NumberInput label="PFF" value={weights.metricWeights.pff} onChange={(value) => update(['metricWeights', 'pff'], value)} />
           <NumberInput label="Yards / Game" value={weights.metricWeights.yards} onChange={(value) => update(['metricWeights', 'yards'], value)} />
           <NumberInput label="First Read %" value={weights.metricWeights.firstRead} onChange={(value) => update(['metricWeights', 'firstRead'], value)} />
-          <NumberInput label="MTF / Rec" value={weights.metricWeights.mtfPerRec} onChange={(value) => update(['metricWeights', 'mtfPerRec'], value)} />
+          <NumberInput label="Target Share" value={weights.metricWeights.targetShare} onChange={(value) => update(['metricWeights', 'targetShare'], value)} />
         </WeightCard>
 
         <WeightCard title="Final Ranking Blend">
@@ -833,7 +868,17 @@ function Stat({ label, value }: { label: string; value: any }) {
 
 function mergeWeights(value: Partial<Weights>): Weights {
   return {
-    metricWeights: { ...DEFAULT_WEIGHTS.metricWeights, ...(value.metricWeights || {}) },
+    metricWeights: {
+      yprr: Number(value.metricWeights?.yprr ?? DEFAULT_WEIGHTS.metricWeights.yprr),
+      pff: Number(value.metricWeights?.pff ?? DEFAULT_WEIGHTS.metricWeights.pff),
+      yards: Number(value.metricWeights?.yards ?? DEFAULT_WEIGHTS.metricWeights.yards),
+      firstRead: Number(value.metricWeights?.firstRead ?? DEFAULT_WEIGHTS.metricWeights.firstRead),
+      targetShare: Number(
+        value.metricWeights?.targetShare ??
+        (value.metricWeights as any)?.mtfPerRec ??
+        DEFAULT_WEIGHTS.metricWeights.targetShare
+      ),
+    },
     seasonWeights: { ...DEFAULT_WEIGHTS.seasonWeights, ...(value.seasonWeights || {}) },
     ageMultipliers: value.ageMultipliers?.length ? value.ageMultipliers as Weights['ageMultipliers'] : DEFAULT_WEIGHTS.ageMultipliers,
     missingSeasonScore: Number(value.missingSeasonScore ?? DEFAULT_WEIGHTS.missingSeasonScore),
@@ -908,7 +953,7 @@ function calculateSeasonRawScoresForPreview(rows: RawRow[], weights: Weights) {
   const aliases = {
     yards: ['RecYDS/G', 'Receiving Yards/G', 'Yards/G', 'YDS'],
     yprr: ['YPRR'],
-    mtfPerRec: ['MTF/REC', 'MTF Per Rec'],
+    targetShare: ['TGT %', 'TGT%', 'Target Share', 'TargetShare'],
     firstRead: ['1READ %', '1Read %', 'First Read %', 'First Rd %'],
     pff: ['Receiving_Grade', 'Receiving Grade', 'grades_pass_route', 'PFF Grade', 'PFF'],
   }
@@ -940,18 +985,18 @@ function calculateSeasonRawScoresForPreview(rows: RawRow[], weights: Weights) {
       const pffPct = metricPercentiles.get('pff')?.get(row) ?? 0.5
       const yardsPct = metricPercentiles.get('yards')?.get(row) ?? 0.5
       const firstReadPct = metricPercentiles.get('firstRead')?.get(row) ?? 0.5
-      const mtfPct = metricPercentiles.get('mtfPerRec')?.get(row) ?? 0.5
+      const targetSharePct = metricPercentiles.get('targetShare')?.get(row) ?? 0.5
       const metricWeights = weights.metricWeights
-      const totalWeight = metricWeights.yprr + metricWeights.pff + metricWeights.yards + metricWeights.firstRead + metricWeights.mtfPerRec
+      const totalWeight = metricWeights.yprr + metricWeights.pff + metricWeights.yards + metricWeights.firstRead + metricWeights.targetShare
       const weightedPercentile = totalWeight > 0
-        ? (yprrPct * metricWeights.yprr + pffPct * metricWeights.pff + yardsPct * metricWeights.yards + firstReadPct * metricWeights.firstRead + mtfPct * metricWeights.mtfPerRec) / totalWeight
+        ? (yprrPct * metricWeights.yprr + pffPct * metricWeights.pff + yardsPct * metricWeights.yards + firstReadPct * metricWeights.firstRead + targetSharePct * metricWeights.targetShare) / totalWeight
         : 0.5
 
       output.push({
         ...row,
         'Yards %': roundPreview(yardsPct, 4),
         'YPRR %': roundPreview(yprrPct, 4),
-        'MTF %': roundPreview(mtfPct, 4),
+        'Target Share %': roundPreview(targetSharePct, 4),
         'First Rd %': roundPreview(firstReadPct, 4),
         'PFF %': roundPreview(pffPct, 4),
         'Raw Score': roundPreview(weightedPercentile * 9999, 2),

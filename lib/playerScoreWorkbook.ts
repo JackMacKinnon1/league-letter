@@ -24,7 +24,7 @@ export type PlayerScoreWeights = {
     pff: number
     yards: number
     firstRead: number
-    mtfPerRec: number
+    targetShare: number
   }
   seasonWeights: {
     current: number
@@ -80,7 +80,6 @@ const CORE_STAT_KEYS = [
   'YPRR',
   'Receiving_Grade',
   '1READ %',
-  'MTF/REC',
   'TGT',
   'TGT/G',
   'TGT %',
@@ -98,7 +97,7 @@ export const DEFAULT_PLAYER_SCORE_WEIGHTS: PlayerScoreWeights = {
     pff: 0.15,
     yards: 0.45,
     firstRead: 0.1,
-    mtfPerRec: 0.05,
+    targetShare: 0.05,
   },
   seasonWeights: {
     current: 0.6,
@@ -130,7 +129,7 @@ export const DEFAULT_PLAYER_SCORE_WEIGHTS: PlayerScoreWeights = {
 const METRIC_ALIASES = {
   yards: ['RecYDS/G', 'Receiving Yards/G', 'Yards/G', 'YDS'],
   yprr: ['YPRR'],
-  mtfPerRec: ['MTF/REC', 'MTF Per Rec'],
+  targetShare: ['TGT %', 'TGT%', 'Target Share', 'TargetShare'],
   firstRead: ['1READ %', '1Read %', 'First Read %', 'First Rd %'],
   pff: ['Receiving_Grade', 'Receiving Grade', 'grades_pass_route', 'PFF Grade', 'PFF'],
 }
@@ -319,7 +318,7 @@ function calculateSeasonRawScores(rows: Record<string, any>[], weights: PlayerSc
       const pffPct = metricPercentiles.get('pff')?.get(row) ?? 0.5
       const yardsPct = metricPercentiles.get('yards')?.get(row) ?? 0.5
       const firstReadPct = metricPercentiles.get('firstRead')?.get(row) ?? 0.5
-      const mtfPct = metricPercentiles.get('mtfPerRec')?.get(row) ?? 0.5
+      const targetSharePct = metricPercentiles.get('targetShare')?.get(row) ?? 0.5
 
       const metricWeights = weights.metricWeights
       const totalWeight =
@@ -327,7 +326,7 @@ function calculateSeasonRawScores(rows: Record<string, any>[], weights: PlayerSc
         metricWeights.pff +
         metricWeights.yards +
         metricWeights.firstRead +
-        metricWeights.mtfPerRec
+        metricWeights.targetShare
 
       const weightedPercentile = totalWeight > 0
         ? (
@@ -335,7 +334,7 @@ function calculateSeasonRawScores(rows: Record<string, any>[], weights: PlayerSc
             pffPct * metricWeights.pff +
             yardsPct * metricWeights.yards +
             firstReadPct * metricWeights.firstRead +
-            mtfPct * metricWeights.mtfPerRec
+            targetSharePct * metricWeights.targetShare
           ) / totalWeight
         : 0.5
 
@@ -343,7 +342,7 @@ function calculateSeasonRawScores(rows: Record<string, any>[], weights: PlayerSc
         ...row,
         'Yards %': round4(yardsPct),
         'YPRR %': round4(yprrPct),
-        'MTF %': round4(mtfPct),
+        'Target Share %': round4(targetSharePct),
         'First Rd %': round4(firstReadPct),
         'PFF %': round4(pffPct),
         'Raw Score': round2(weightedPercentile * 9999),
@@ -671,8 +670,15 @@ function mergeWeights(weights?: Partial<PlayerScoreWeights>): PlayerScoreWeights
   const fallback = DEFAULT_PLAYER_SCORE_WEIGHTS
   return {
     metricWeights: {
-      ...fallback.metricWeights,
-      ...(weights?.metricWeights || {}),
+      yprr: Number(weights?.metricWeights?.yprr ?? fallback.metricWeights.yprr),
+      pff: Number(weights?.metricWeights?.pff ?? fallback.metricWeights.pff),
+      yards: Number(weights?.metricWeights?.yards ?? fallback.metricWeights.yards),
+      firstRead: Number(weights?.metricWeights?.firstRead ?? fallback.metricWeights.firstRead),
+      targetShare: Number(
+        weights?.metricWeights?.targetShare ??
+        (weights?.metricWeights as any)?.mtfPerRec ??
+        fallback.metricWeights.targetShare
+      ),
     },
     seasonWeights: {
       ...fallback.seasonWeights,

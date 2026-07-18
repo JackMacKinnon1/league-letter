@@ -5,9 +5,8 @@ import {
   buildPlayerScoresFromRawRows,
   DEFAULT_PLAYER_SCORE_WEIGHTS,
   parsePlayerScoreWorkbook,
-  PlayerPosition,
-  PlayerScoreWeights,
 } from '@/lib/playerScoreWorkbook'
+import type { PlayerPosition, PlayerScoreWeights } from '@/lib/playerScoreWorkbook'
 
 export const dynamic = 'force-dynamic'
 
