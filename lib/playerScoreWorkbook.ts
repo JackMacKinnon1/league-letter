@@ -81,6 +81,8 @@ const CORE_STAT_KEYS = [
   'Receiving_Grade',
   '1READ %',
   'TGT',
+  'Routes',
+  'Routes Run',
   'TGT/G',
   'TGT %',
   'TPRR',

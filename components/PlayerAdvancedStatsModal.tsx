@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { Database, X } from "lucide-react";
+import { getRouteVolume } from "@/lib/playerScoreStats";
 
 export type PlayerScoreRow = {
   id: string;
@@ -38,6 +39,10 @@ const SEASON_TABLE_STATS = [
   "Team",
   "G",
   "YDS",
+  "Routes",
+  "TGT",
+  "REC",
+  "TD",
   "RecYDS/G",
   "YPRR",
   "Receiving_Grade",
@@ -49,14 +54,16 @@ const SEASON_TABLE_STATS = [
 
 const FEATURED_STATS = [
   "YDS",
+  "Routes",
+  "TGT",
+  "REC",
+  "TD",
   "RecYDS/G",
   "YPRR",
   "Receiving_Grade",
   "1READ %",
   "TGT %",
   "TPRR",
-  "REC",
-  "TD",
   "Birth Date",
 ];
 
@@ -152,7 +159,11 @@ function PlayerStatsModal({
                 <ModalStat
                   key={key}
                   label={key}
-                  value={latestCoreStats[key] ?? latestFullStats[key] ?? "—"}
+                  value={
+                    key === "Routes"
+                      ? getRouteVolume(seasonStats[0] || null).routes ?? "—"
+                      : latestCoreStats[key] ?? latestFullStats[key] ?? "—"
+                  }
                 />
               ))}
             </div>
@@ -189,7 +200,9 @@ function PlayerStatsModal({
                             ? season.team
                             : key === "Season"
                               ? season.season
-                              : season.stats?.[key];
+                              : key === "Routes"
+                                ? getRouteVolume(season).routes
+                                : season.stats?.[key];
 
                         return (
                           <td key={key} className="px-4 py-3">

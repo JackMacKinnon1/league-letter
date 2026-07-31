@@ -11,7 +11,8 @@ export async function GET(request: Request) {
     const position = String(searchParams.get('position') || 'WR').toUpperCase()
     const uploadIdParam = String(searchParams.get('uploadId') || '').trim()
     const page = Math.max(Number(searchParams.get('page') || 1), 1)
-    const pageSize = Math.min(Math.max(Number(searchParams.get('pageSize') || 50), 1), 100)
+    const includeAll = String(searchParams.get('all') || '').toLowerCase() === 'true'
+    const pageSize = Math.min(Math.max(Number(searchParams.get('pageSize') || 50), 1), 500)
     const search = String(searchParams.get('search') || '').trim()
 
     if (!VALID_POSITIONS.has(position)) {
@@ -53,7 +54,10 @@ export async function GET(request: Request) {
       .eq('upload_id', selectedUpload.id)
       .eq('position', position)
       .order('rank', { ascending: true })
-      .range((page - 1) * pageSize, page * pageSize - 1)
+
+    if (!includeAll) {
+      query = query.range((page - 1) * pageSize, page * pageSize - 1)
+    }
 
     if (search) {
       const escapedSearch = search.replace(/[%_]/g, (char) => `\\${char}`)
@@ -71,7 +75,7 @@ export async function GET(request: Request) {
       total,
       page,
       pageSize,
-      totalPages: Math.max(Math.ceil(total / pageSize), 1),
+      totalPages: includeAll ? 1 : Math.max(Math.ceil(total / pageSize), 1),
       position,
       uploadId: selectedUpload.id,
       selectedUpload,
