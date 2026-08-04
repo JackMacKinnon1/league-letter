@@ -1,6 +1,6 @@
 'use client'
 
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { usePathname } from 'next/navigation'
 
 const SKIPPED_TAGS = new Set([
@@ -14,7 +14,8 @@ const SKIPPED_TAGS = new Set([
 
 const MAX_LAYOUT_DEPTH = 2
 const MAX_DELAY_STEP = 8
-const REVEAL_RUN_ATTRIBUTE = 'pageRevealRun'
+const REVEAL_DELAY_MS = 72
+const REVEAL_DURATION_MS = 720
 
 function isHTMLElement(element: Element): element is HTMLElement {
   return element instanceof HTMLElement
@@ -135,15 +136,19 @@ function collectRevealGroups(root: HTMLElement): HTMLElement[][] {
   return groups
 }
 
+function isNearViewport(element: HTMLElement) {
+  const rect = element.getBoundingClientRect()
+  return rect.bottom > 0 && rect.top < window.innerHeight * 0.93
+}
+
 export default function PageTransition({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const rootRef = useRef<HTMLDivElement>(null)
-  const runNumberRef = useRef(0)
   const [restoreReplay, setRestoreReplay] = useState(0)
 
   // A page restored from the browser back/forward cache does not always remount
   // React. Replay the entrance sequence in that case as well.
-  useLayoutEffect(() => {
+  useEffect(() => {
     const replayRestoredPage = (event: PageTransitionEvent) => {
       if (event.persisted) setRestoreReplay((value) => value + 1)
     }
@@ -156,42 +161,55 @@ export default function PageTransition({ children }: { children: ReactNode }) {
     const root = rootRef.current
     if (!root) return
 
-    const runId = `${pathname}:${restoreReplay}:${++runNumberRef.current}`
-    const animatedElements = new Set<HTMLElement>()
-    const pendingElements = new Set<HTMLElement>()
-    const completionTimers = new Set<number>()
+    const registeredElements = new WeakSet<HTMLElement>()
+    const revealOrders = new WeakMap<HTMLElement, number>()
+    const runningAnimations = new Set<Animation>()
     let scanFrame = 0
-    let firstRevealFrame = 0
-    let secondRevealFrame = 0
 
     const reducedMotion = window.matchMedia(
       '(prefers-reduced-motion: reduce)'
     ).matches
 
-    const finishReveal = (element: HTMLElement) => {
-      // Keep the run marker until the route changes. That prevents MutationObserver
-      // callbacks caused by class cleanup from replaying the same item endlessly.
-      element.classList.remove('stagger-reveal', 'stagger-reveal-visible')
-      element.style.removeProperty('--reveal-order')
+    const playReveal = (element: HTMLElement) => {
+      if (reducedMotion || !element.isConnected) return
+
+      const order = revealOrders.get(element) ?? 0
+      const animation = element.animate(
+        [
+          {
+            opacity: 0,
+            transform: 'translateY(18px) scale(0.992)',
+            filter: 'blur(5px)',
+          },
+          {
+            opacity: 1,
+            transform: 'translateY(0) scale(1)',
+            filter: 'blur(0px)',
+          },
+        ],
+        {
+          duration: REVEAL_DURATION_MS,
+          delay: Math.min(order, MAX_DELAY_STEP) * REVEAL_DELAY_MS,
+          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+          fill: 'backwards',
+        }
+      )
+
+      runningAnimations.add(animation)
+
+      const removeAnimation = () => runningAnimations.delete(animation)
+      animation.addEventListener('finish', removeAnimation, { once: true })
+      animation.addEventListener('cancel', removeAnimation, { once: true })
     }
 
-    const observer = new IntersectionObserver(
+    const intersectionObserver = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (!entry.isIntersecting) continue
 
           const element = entry.target as HTMLElement
-          element.classList.add('stagger-reveal-visible')
-          observer.unobserve(element)
-
-          const order =
-            Number(element.style.getPropertyValue('--reveal-order')) || 0
-          const timer = window.setTimeout(() => {
-            finishReveal(element)
-            completionTimers.delete(timer)
-          }, 860 + order * 72)
-
-          completionTimers.add(timer)
+          intersectionObserver.unobserve(element)
+          playReveal(element)
         }
       },
       {
@@ -200,51 +218,25 @@ export default function PageTransition({ children }: { children: ReactNode }) {
       }
     )
 
-    const observePendingElements = () => {
-      if (pendingElements.size === 0) return
-
-      // Two animation frames guarantee that the hidden state is painted before
-      // above-the-fold elements are made visible. This makes the animation replay
-      // reliably on fast cached client-side navigations as well as first load.
-      window.cancelAnimationFrame(firstRevealFrame)
-      window.cancelAnimationFrame(secondRevealFrame)
-
-      firstRevealFrame = window.requestAnimationFrame(() => {
-        secondRevealFrame = window.requestAnimationFrame(() => {
-          pendingElements.forEach((element) => {
-            if (element.isConnected) observer.observe(element)
-          })
-          pendingElements.clear()
-        })
-      })
-    }
-
     const registerRevealItems = () => {
       const revealGroups = collectRevealGroups(root)
 
       revealGroups.forEach((group) => {
         group.forEach((element, index) => {
-          if (element.dataset[REVEAL_RUN_ATTRIBUTE] === runId) return
+          if (registeredElements.has(element)) return
 
-          // A persistent layout can reuse DOM nodes across routes. Explicitly reset
-          // any previous finished state before assigning this navigation's run.
-          element.classList.remove('stagger-reveal', 'stagger-reveal-visible')
-          element.style.removeProperty('--reveal-order')
-          element.dataset[REVEAL_RUN_ATTRIBUTE] = runId
-          animatedElements.add(element)
+          registeredElements.add(element)
+          revealOrders.set(element, Math.min(index, MAX_DELAY_STEP))
 
           if (reducedMotion) return
 
-          element.classList.add('stagger-reveal')
-          element.style.setProperty(
-            '--reveal-order',
-            String(Math.min(index, MAX_DELAY_STEP))
-          )
-          pendingElements.add(element)
+          if (isNearViewport(element)) {
+            playReveal(element)
+          } else {
+            intersectionObserver.observe(element)
+          }
         })
       })
-
-      if (!reducedMotion) observePendingElements()
     }
 
     const scheduleScan = () => {
@@ -252,9 +244,11 @@ export default function PageTransition({ children }: { children: ReactNode }) {
       scanFrame = window.requestAnimationFrame(registerRevealItems)
     }
 
-    // Scan immediately for server-rendered content, and keep scanning while the
-    // route streams, resolves Suspense boundaries, or replaces cached page content.
+    // This does not add classes, data attributes, or inline styles to React-owned
+    // elements. Web Animations are visual-only, so they cannot create a hydration
+    // mismatch even when a nested route is still hydrating.
     registerRevealItems()
+
     const mutationObserver = new MutationObserver(scheduleScan)
     mutationObserver.observe(root, {
       childList: true,
@@ -263,20 +257,10 @@ export default function PageTransition({ children }: { children: ReactNode }) {
 
     return () => {
       window.cancelAnimationFrame(scanFrame)
-      window.cancelAnimationFrame(firstRevealFrame)
-      window.cancelAnimationFrame(secondRevealFrame)
       mutationObserver.disconnect()
-      observer.disconnect()
-      completionTimers.forEach((timer) => window.clearTimeout(timer))
-      completionTimers.clear()
-      pendingElements.clear()
-
-      animatedElements.forEach((element) => {
-        element.classList.remove('stagger-reveal', 'stagger-reveal-visible')
-        element.style.removeProperty('--reveal-order')
-        delete element.dataset[REVEAL_RUN_ATTRIBUTE]
-      })
-      animatedElements.clear()
+      intersectionObserver.disconnect()
+      runningAnimations.forEach((animation) => animation.cancel())
+      runningAnimations.clear()
     }
   }, [pathname, restoreReplay])
 
@@ -285,7 +269,6 @@ export default function PageTransition({ children }: { children: ReactNode }) {
       key={`${pathname}:${restoreReplay}`}
       ref={rootRef}
       className="page-transition min-h-screen"
-      data-page-route={pathname}
     >
       {children}
     </div>
