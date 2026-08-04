@@ -674,6 +674,8 @@ export async function syncSleeperLeagueData({
       sport: sleeperLeague.sport,
       total_rosters: sleeperLeague.total_rosters,
       division_count: sleeperLeague.settings?.divisions || null,
+      scoring_settings: sleeperLeague.scoring_settings || {},
+      game_feed_metadata_synced_at: new Date().toISOString(),
       current_week: selectedWeek,
       last_synced_at: new Date().toISOString(),
     })

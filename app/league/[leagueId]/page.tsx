@@ -5,6 +5,8 @@ import TransactionCard from '@/components/TransactionCard'
 import MostRecentTransactionPanel from '@/components/MostRecentTransactionsPanel'
 import LiveMatchupsPanel from '@/components/LiveMatchupsPanel'
 import LeagueTicker from '@/components/LeagueTicker'
+import GameFeedPreview from '@/components/GameFeedPreview'
+import type { GameFeedEvent } from '@/lib/gameFeed'
 import { createClient } from '@/lib/supabase/server'
 import { isLeagueAdmin } from '@/lib/permissions'
 import {
@@ -53,6 +55,7 @@ export default async function LeaguePage({
     String(new Date().getFullYear())
 
   const selectedWeek = Math.max(Number(week || league?.current_week || 1), 1)
+  const gameFeedMode = league?.game_feed_display_mode === 'test' ? 'test' : 'public'
   const pollLiveScores =
     String(league?.status || '').toLowerCase() === 'in_season' &&
     String(selectedSeason) === String(league?.season || '')
@@ -90,6 +93,16 @@ export default async function LeaguePage({
     .eq('season', selectedSeason)
     .eq('week', selectedWeek)
     .order('matchup_id', { ascending: true })
+
+  const { data: recentGameFeedEvents } = await supabase
+    .from('game_feed_events')
+    .select('*')
+    .eq('league_id', leagueId)
+    .eq('feed_mode', gameFeedMode)
+    .eq('season', selectedSeason)
+    .eq('week', selectedWeek)
+    .order('id', { ascending: false })
+    .limit(4)
 
   const { data: breakingNews } = await supabase
     .from('breaking_news')
@@ -242,6 +255,12 @@ export default async function LeaguePage({
 
             <div className="flex flex-wrap gap-3">
               <Link
+                href={`/league/${leagueId}/game-feed?season=${selectedSeason}&week=${selectedWeek}`}
+                className="rounded-2xl bg-emerald-500 px-5 py-3 font-black text-zinc-950 transition hover:bg-emerald-400"
+              >
+                Game Feed
+              </Link>
+              <Link
                 href={`/league/${leagueId}/winners`}
                 className="rounded-2xl border border-white/20 bg-white/10 px-5 py-3 font-black backdrop-blur transition hover:bg-white/20"
               >
@@ -345,7 +364,13 @@ export default async function LeaguePage({
             />
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <LeagueActionLink
+              href={`/league/${leagueId}/game-feed?season=${selectedSeason}&week=${selectedWeek}`}
+              eyebrow="Live"
+              title="Game Feed"
+              description="Fantasy-scoring-derived plays as they happen."
+            />
             <LeagueActionLink
               href={`/league/${leagueId}/trade-center`}
               eyebrow="Trades"
@@ -440,6 +465,14 @@ export default async function LeaguePage({
               </p>
             )}
           </section>
+
+          <GameFeedPreview
+            leagueId={leagueId}
+            season={String(selectedSeason)}
+            week={selectedWeek}
+            feedMode={gameFeedMode}
+            events={(recentGameFeedEvents || []) as GameFeedEvent[]}
+          />
 
           <div>
             <div className="mb-3 flex justify-end">

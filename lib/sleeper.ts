@@ -8,6 +8,7 @@ export type SleeperLeague = {
   status: string
   sport: string
   total_rosters: number
+  scoring_settings?: Record<string, number>
   previous_league_id?: string | null
   metadata?: {
     [key: string]: unknown

@@ -81,6 +81,13 @@ export default async function MatchupsPage({
             Season {selectedSeason} · Week {selectedWeek}
           </p>
 
+          <Link
+            href={`/league/${leagueId}/game-feed?season=${selectedSeason}&week=${selectedWeek}`}
+            className="mt-5 inline-flex rounded-2xl bg-emerald-500 px-5 py-3 font-black text-zinc-950 hover:bg-emerald-400"
+          >
+            Open Game Feed
+          </Link>
+
           <LeagueWeekSelector
             leagueId={leagueId}
             seasons={availableSeasons.length ? availableSeasons : [selectedSeason]}

@@ -277,7 +277,14 @@ export default async function TeamRosterPage({
                             <tbody>
                                 {sortedPlayers.map((player: any) => (
                                     <tr key={player.id} className="border-t border-zinc-800">
-                                        <td className="px-4 py-3 font-bold">{player.name}</td>
+                                        <td className="px-4 py-3 font-bold">
+                                            <Link
+                                                href={`/league/${leagueId}/players/${player.id}?season=${selectedSeason}`}
+                                                className="hover:text-emerald-300"
+                                            >
+                                                {player.name}
+                                            </Link>
+                                        </td>
                                         <td className="px-4 py-3 text-zinc-300">
                                             {player.position}
                                         </td>

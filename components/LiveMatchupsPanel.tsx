@@ -35,8 +35,8 @@ export default function LiveMatchupsPanel({
   const [changedRosterIds, setChangedRosterIds] = useState<Set<number>>(new Set())
   const [statusMessage, setStatusMessage] = useState(
     pollLiveScores
-      ? 'Live scores are updating in the background every minute.'
-      : 'Live score polling is paused outside the Sleeper season.'
+      ? 'These matchup cards use the latest normal league sync. The global Game Feed worker only collects player scoring events.'
+      : 'Live score updates are paused outside the Sleeper season.'
   )
   const [glowVersion, setGlowVersion] = useState(0)
   const previousPointsRef = useRef<Map<number, number>>(buildPointsMap(initialMatchups || []))
@@ -98,9 +98,13 @@ export default function LiveMatchupsPanel({
       setLastCheckedAt(new Date())
       setChangedRosterIds(changed)
       setStatusMessage(
-        json.synced
-          ? 'Live scores updated in the background without refreshing the page.'
-          : 'Live score polling is paused outside the Sleeper season.'
+        json.globalFeedOnly
+          ? 'These matchup cards use the latest normal league sync. The single-source Game Feed worker does not poll each league.'
+          : !json.feedEnabled
+            ? 'Game Feed collection is disabled for this league.'
+            : json.synced
+              ? 'Live scores refreshed from Supabase.'
+              : 'Stored matchup scores are still available.'
       )
 
       if (changed.size) {
@@ -118,7 +122,7 @@ export default function LiveMatchupsPanel({
 
     const intervalId = window.setInterval(() => {
       void refreshMatchups('auto')
-    }, 60_000)
+    }, 15_000)
 
     return () => window.clearInterval(intervalId)
   }, [pollLiveScores, refreshMatchups])

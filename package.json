@@ -6,7 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:game-feed": "node scripts/test-game-feed-inference.mjs",
+    "game-feed": "node game-feed-worker/index.mjs",
+    "game-feed:once": "node game-feed-worker/index.mjs --once",
+    "game-feed:public": "node game-feed-worker/index.mjs --mode public",
+    "game-feed:test": "node game-feed-worker/index.mjs --mode test",
+    "game-feed:test:demo": "node game-feed-worker/index.mjs --mode test --demo --once"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.2",

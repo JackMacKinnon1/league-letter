@@ -81,6 +81,8 @@ export async function POST(req: Request) {
         status: sleeperLeague.status,
         sport: sleeperLeague.sport,
         total_rosters: sleeperLeague.total_rosters,
+        scoring_settings: sleeperLeague.scoring_settings || {},
+        game_feed_metadata_synced_at: new Date().toISOString(),
         current_week: sleeperLeague.settings?.week || 1,
         admin_id: user.id,
       })

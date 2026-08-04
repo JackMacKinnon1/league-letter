@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getSleeperLeague, getSleeperMatchups } from '@/lib/sleeper'
+import { normalizeGameFeedSeason, normalizeGameFeedWeek } from '@/lib/gameFeed'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,13 +11,13 @@ export async function GET(
   try {
     const { leagueId } = await params
     const url = new URL(request.url)
-    const selectedSeason = url.searchParams.get('season') || ''
-    const selectedWeek = Math.max(Number(url.searchParams.get('week') || 1), 1)
+    const requestedSeason = url.searchParams.get('season')
+    const requestedWeek = url.searchParams.get('week')
     const supabase = createAdminClient()
 
     const { data: league, error: leagueError } = await supabase
       .from('leagues')
-      .select('*')
+      .select('id,season,status,current_week,game_feed_enabled')
       .eq('id', leagueId)
       .single()
 
@@ -25,91 +25,52 @@ export async function GET(
       return NextResponse.json({ error: 'League not found.' }, { status: 404 })
     }
 
-    let synced = false
+    const season = normalizeGameFeedSeason(requestedSeason, league.season || '')
+    const selectedWeek = normalizeGameFeedWeek(
+      requestedWeek,
+      Number(league.current_week || 1)
+    )
 
-    try {
-      const sleeperLeague = await getSleeperLeague(league.sleeper_league_id)
-      const isInSeason = String(sleeperLeague.status || league.status || '').toLowerCase() === 'in_season'
-      const isCurrentSeason = !selectedSeason || String(selectedSeason) === String(sleeperLeague.season)
-
-      if (isInSeason && isCurrentSeason) {
-        const sleeperMatchups = await getSleeperMatchups(league.sleeper_league_id, selectedWeek)
-
-        const { data: teams } = await supabase
-          .from('teams')
-          .select('sleeper_roster_id, team_name')
+    const [{ data: matchups, error: matchupError }, { data: teams }] =
+      await Promise.all([
+        supabase
+          .from('matchups')
+          .select('*')
           .eq('league_id', leagueId)
+          .eq('season', season)
+          .eq('week', selectedWeek)
+          .order('matchup_id', { ascending: true }),
+        supabase.from('teams').select('*').eq('league_id', leagueId),
+      ])
 
-        const teamNameByRosterId = new Map<number, string>()
-        for (const team of teams || []) {
-          teamNameByRosterId.set(Number(team.sleeper_roster_id), team.team_name)
-        }
-
-        const rows = (sleeperMatchups || [])
-          .filter((matchup) => matchup.roster_id)
-          .map((matchup) => ({
-            league_id: leagueId,
-            sleeper_league_id: league.sleeper_league_id,
-            season: sleeperLeague.season,
-            week: selectedWeek,
-            matchup_id: matchup.matchup_id ?? null,
-            sleeper_roster_id: matchup.roster_id,
-            team_name: teamNameByRosterId.get(Number(matchup.roster_id)) || `Team ${matchup.roster_id}`,
-            points: matchup.points || 0,
-            projected_points: 0,
-            starters: matchup.starters || [],
-            players: matchup.players || [],
-            players_points: matchup.players_points || null,
-            updated_at: new Date().toISOString(),
-          }))
-
-        if (rows.length) {
-          const { error } = await supabase.from('matchups').upsert(rows, {
-            onConflict: 'league_id,season,week,sleeper_roster_id',
-          })
-
-          if (error) throw new Error(error.message)
-          synced = true
-        }
-
-        await supabase
-          .from('leagues')
-          .update({
-            status: sleeperLeague.status,
-            season: sleeperLeague.season,
-            current_week: sleeperLeague.settings?.week || selectedWeek,
-            last_synced_at: new Date().toISOString(),
-          })
-          .eq('id', leagueId)
-      }
-    } catch {
-      // If Sleeper is unavailable, still return the latest database rows.
+    if (matchupError) {
+      return NextResponse.json({ error: matchupError.message }, { status: 500 })
     }
 
-    const seasonToRead = selectedSeason || league.season
-
-    const { data: matchups } = await supabase
-      .from('matchups')
-      .select('*')
-      .eq('league_id', leagueId)
-      .eq('season', seasonToRead)
-      .eq('week', selectedWeek)
-      .order('matchup_id', { ascending: true })
-
-    const { data: teams } = await supabase
-      .from('teams')
-      .select('*')
-      .eq('league_id', leagueId)
+    const latestStoredUpdate = (matchups || []).reduce<string | null>((latest, matchup: any) => {
+      if (!matchup.updated_at) return latest
+      if (!latest || new Date(matchup.updated_at).getTime() > new Date(latest).getTime()) {
+        return matchup.updated_at
+      }
+      return latest
+    }, null)
 
     return NextResponse.json({
-      synced,
       matchups: matchups || [],
       teams: teams || [],
+      synced: false,
+      feedEnabled: Boolean(league.game_feed_enabled),
+      workerOnline: false,
+      globalFeedOnly: true,
+      leagueStatus: league.status,
+      lastSyncedAt: latestStoredUpdate,
+      source: 'supabase',
     })
   } catch (error: any) {
     return NextResponse.json(
-      { error: error?.message || 'Could not refresh live matchups.' },
+      { error: error?.message || 'Could not load live matchups.' },
       { status: 500 }
     )
   }
 }
+
