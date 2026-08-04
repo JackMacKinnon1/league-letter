@@ -1,3 +1,9 @@
+export const SITE_ADMIN_EMAIL = 'mackinnonjack4@gmail.com'
+
+export function isSiteAdminEmail(email?: string | null) {
+  return String(email || '').trim().toLowerCase() === SITE_ADMIN_EMAIL
+}
+
 export async function isLeagueAdmin({
   supabase,
   leagueId,

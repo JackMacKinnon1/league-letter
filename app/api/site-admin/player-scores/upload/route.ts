@@ -7,10 +7,10 @@ import {
   parsePlayerScoreWorkbook,
 } from '@/lib/playerScoreWorkbook'
 import type { PlayerPosition, PlayerScoreWeights } from '@/lib/playerScoreWorkbook'
+import { isSiteAdminEmail } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
-const SITE_ADMIN_EMAIL = 'mackinnonjack4@gmail.com'
 const VALID_POSITIONS = new Set(['WR', 'TE', 'QB', 'RB'])
 
 async function requireSiteAdmin(): Promise<{ error?: NextResponse }> {
@@ -20,7 +20,7 @@ async function requireSiteAdmin(): Promise<{ error?: NextResponse }> {
     data: { user },
   } = await supabaseUserClient.auth.getUser()
 
-  if (!user || user.email !== SITE_ADMIN_EMAIL) {
+  if (!user || !isSiteAdminEmail(user.email)) {
     return { error: NextResponse.json({ error: 'Unauthorized.' }, { status: 403 }) }
   }
 

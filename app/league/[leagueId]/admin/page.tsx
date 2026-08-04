@@ -7,7 +7,6 @@ import ArticleManager from '@/components/ArticleManager'
 import MemberInviteManager from '@/components/MemberInviteManager'
 import BreakingNewsManager from '@/components/BreakingNewsManager'
 import LeagueTickerManager from '@/components/LeagueTickerManager'
-import GameFeedManager from '@/components/GameFeedManager'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { isLeagueAdmin } from '@/lib/permissions'
@@ -161,7 +160,7 @@ export default async function LeagueAdminPage({
 
           <p className="mt-3 text-zinc-400">
             Manage league content, sync Sleeper data, assign featured matchups,
-            and control writers/admins.
+            and control writers/admins. Site-wide tools are managed separately by the site owner.
           </p>
 
           <div className="mt-6">
@@ -171,8 +170,6 @@ export default async function LeagueAdminPage({
       </section>
 
       <section className="mx-auto max-w-7xl space-y-6 px-4 py-8">
-        <GameFeedManager leagueId={leagueId} initialSettings={league} />
-
         <LeagueTickerManager
           leagueId={leagueId}
           initialSettings={tickerSettings}

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { isLeagueAdmin } from '@/lib/permissions'
+import { isSiteAdminEmail } from '@/lib/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const SETTINGS_COLUMNS = [
@@ -27,7 +27,7 @@ export async function GET(
 ) {
   try {
     const { leagueId } = await params
-    const access = await requireLeagueAdmin(leagueId)
+    const access = await requireSiteAdmin()
     if (access.response) return access.response
 
     const adminSupabase = createAdminClient()
@@ -75,7 +75,7 @@ export async function PATCH(
   try {
     const { leagueId } = await params
     const body = await request.json()
-    const access = await requireLeagueAdmin(leagueId)
+    const access = await requireSiteAdmin()
     if (access.response) return access.response
 
     const displayMode = body.displayMode === 'test' ? 'test' : 'public'
@@ -119,7 +119,7 @@ export async function PATCH(
   }
 }
 
-async function requireLeagueAdmin(leagueId: string) {
+async function requireSiteAdmin() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -134,16 +134,10 @@ async function requireLeagueAdmin(leagueId: string) {
     }
   }
 
-  const canAdmin = await isLeagueAdmin({
-    supabase,
-    leagueId,
-    userId: user.id,
-  })
-
-  if (!canAdmin) {
+  if (!isSiteAdminEmail(user.email)) {
     return {
       response: NextResponse.json(
-        { error: 'Admin access required.' },
+        { error: 'Site administrator access required.' },
         { status: 403 }
       ),
     }

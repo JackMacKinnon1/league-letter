@@ -1,6 +1,7 @@
 import Link from '@/components/NoPrefetchLink'
-import { Trophy } from 'lucide-react'
+import { ShieldCheck, Trophy } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { isSiteAdminEmail } from '@/lib/permissions'
 import LogoutButton from './LogoutButton'
 import MobileNav from './MobileNav'
 
@@ -16,6 +17,8 @@ export default async function Navbar() {
   const {
     data: { user },
   } = await supabase.auth.getUser()
+
+  const isSiteAdmin = isSiteAdminEmail(user?.email)
 
   return (
     <header className="sticky top-0 z-[2147483000] isolate border-b border-white/10 bg-[#08090b]/90 text-white shadow-lg shadow-black/10 backdrop-blur-xl supports-[backdrop-filter]:bg-[#08090b]/75">
@@ -42,11 +45,22 @@ export default async function Navbar() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="rounded-xl px-3 py-2 transition hover:bg-white/[0.07] hover:text-white"
+                  className="rounded-xl px-3 py-2 transition duration-200 hover:-translate-y-0.5 hover:bg-white/[0.07] hover:text-white"
                 >
                   {link.label}
                 </Link>
               ))}
+
+              {isSiteAdmin && (
+                <Link
+                  href="/site-admin"
+                  className="ml-1 inline-flex items-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 font-black text-emerald-300 transition duration-200 hover:-translate-y-0.5 hover:border-emerald-400/45 hover:bg-emerald-400/15"
+                >
+                  <ShieldCheck size={15} />
+                  Site Admin
+                </Link>
+              )}
+
               <div className="ml-1 border-l border-white/10 pl-2">
                 <LogoutButton />
               </div>
@@ -61,7 +75,11 @@ export default async function Navbar() {
           )}
         </nav>
 
-        <MobileNav links={authedLinks} isLoggedIn={Boolean(user)} />
+        <MobileNav
+          links={authedLinks}
+          isLoggedIn={Boolean(user)}
+          isSiteAdmin={isSiteAdmin}
+        />
       </div>
     </header>
   )

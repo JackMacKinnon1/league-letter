@@ -423,3 +423,174 @@ select option {
 .transaction-gold-glow {
   animation: transactionGoldGlow 2.4s ease-out;
 }
+
+/* Route transitions ------------------------------------------------------- */
+.route-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 2147483647;
+  height: 3px;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.route-progress > span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--accent), #a7f3d0);
+  box-shadow: 0 0 18px rgba(52, 211, 153, 0.72);
+  transform: translateX(-115%);
+}
+
+.route-progress-active {
+  opacity: 1;
+}
+
+.route-progress-active > span {
+  animation: route-progress-slide 850ms cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+@keyframes route-progress-slide {
+  0% { transform: translateX(-115%); }
+  70% { transform: translateX(180%); }
+  100% { transform: translateX(260%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-progress-active > span {
+    animation: none;
+    width: 100%;
+    transform: none;
+  }
+}
+
+/* League actions dropdown ------------------------------------------------ */
+.league-actions-menu {
+  position: relative;
+  z-index: 80;
+}
+
+.league-actions-summary {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: var(--accent);
+  padding: 0.75rem 1.1rem;
+  color: #06110d;
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+  box-shadow: 0 14px 34px rgba(16, 185, 129, 0.15);
+  transition: transform 180ms ease, filter 180ms ease, box-shadow 180ms ease;
+}
+
+.league-actions-summary::-webkit-details-marker,
+.league-actions-summary::marker {
+  display: none;
+  content: '';
+}
+
+.league-actions-summary:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+  box-shadow: 0 18px 42px rgba(16, 185, 129, 0.22);
+}
+
+.league-actions-summary:active {
+  transform: scale(0.98);
+}
+
+.league-actions-chevron {
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.league-actions-menu[open] .league-actions-chevron {
+  transform: rotate(180deg);
+}
+
+.league-actions-popover {
+  position: absolute;
+  top: calc(100% + 0.75rem);
+  right: 0;
+  width: min(34rem, calc(100vw - 2rem));
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 1.35rem;
+  background: rgba(16, 18, 22, 0.98);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(22px);
+  transform-origin: top right;
+  animation: league-menu-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes league-menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-7px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 640px) {
+  .league-actions-menu,
+  .league-actions-summary {
+    width: 100%;
+  }
+
+  .league-actions-summary {
+    justify-content: center;
+  }
+
+  .league-actions-popover {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 5.2rem);
+    right: 1rem;
+    left: 1rem;
+    width: auto;
+    max-height: calc(100dvh - 7rem);
+    overflow-y: auto;
+  }
+}
+
+/* Staggered page reveals -------------------------------------------------- */
+.page-transition {
+  min-height: 100vh;
+}
+
+.stagger-reveal {
+  opacity: 0;
+  transform: translateY(18px) scale(0.992);
+  filter: blur(5px);
+  transition:
+    opacity 620ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 720ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 620ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--reveal-order, 0) * 72ms);
+  will-change: opacity, transform, filter;
+}
+
+.stagger-reveal-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: blur(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stagger-reveal,
+  .stagger-reveal-visible {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none;
+  }
+}

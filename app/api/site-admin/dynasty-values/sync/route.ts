@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isSiteAdminEmail } from '@/lib/permissions'
 
 export const dynamic = 'force-dynamic'
 
-const SITE_ADMIN_EMAIL = 'mackinnonjack4@gmail.com'
 const DEFAULT_PROFILE = 'dynasty-2qb-12t-ppr1'
 
 export async function POST() {
@@ -15,7 +15,7 @@ export async function POST() {
       data: { user },
     } = await userClient.auth.getUser()
 
-    if (!user || user.email !== SITE_ADMIN_EMAIL) {
+    if (!user || !isSiteAdminEmail(user.email)) {
       return NextResponse.json({ error: 'Unauthorized.' }, { status: 403 })
     }
 

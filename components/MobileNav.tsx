@@ -1,5 +1,5 @@
 import Link from '@/components/NoPrefetchLink'
-import { Menu, X } from 'lucide-react'
+import { Menu, ShieldCheck, X } from 'lucide-react'
 import LogoutButton from './LogoutButton'
 
 type NavLink = {
@@ -10,9 +10,11 @@ type NavLink = {
 export default function MobileNav({
   links,
   isLoggedIn,
+  isSiteAdmin,
 }: {
   links: NavLink[]
   isLoggedIn: boolean
+  isSiteAdmin: boolean
 }) {
   return (
     <details className="mobile-menu md:hidden">
@@ -44,6 +46,17 @@ export default function MobileNav({
                   {link.label}
                 </Link>
               ))}
+
+              {isSiteAdmin && (
+                <Link
+                  href="/site-admin"
+                  className="mx-1 mt-1 flex items-center gap-3 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-3 text-sm font-black text-emerald-300 transition active:scale-[0.99] hover:bg-emerald-400/15"
+                >
+                  <ShieldCheck size={17} />
+                  Site Admin
+                </Link>
+              )}
+
               <div className="mt-2 border-t border-white/10 px-2 pt-2">
                 <LogoutButton />
               </div>

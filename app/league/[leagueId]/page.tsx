@@ -6,6 +6,7 @@ import MostRecentTransactionPanel from '@/components/MostRecentTransactionsPanel
 import LiveMatchupsPanel from '@/components/LiveMatchupsPanel'
 import LeagueTicker from '@/components/LeagueTicker'
 import GameFeedPreview from '@/components/GameFeedPreview'
+import LeagueActionsMenu from '@/components/LeagueActionsMenu'
 import type { GameFeedEvent } from '@/lib/gameFeed'
 import { createClient } from '@/lib/supabase/server'
 import { isLeagueAdmin } from '@/lib/permissions'
@@ -253,56 +254,13 @@ export default async function LeaguePage({
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3">
-              <Link
-                href={`/league/${leagueId}/game-feed?season=${selectedSeason}&week=${selectedWeek}`}
-                className="rounded-2xl bg-emerald-500 px-5 py-3 font-black text-zinc-950 transition hover:bg-emerald-400"
-              >
-                Game Feed
-              </Link>
-              <Link
-                href={`/league/${leagueId}/winners`}
-                className="rounded-2xl border border-white/20 bg-white/10 px-5 py-3 font-black backdrop-blur transition hover:bg-white/20"
-              >
-                Trophy Room
-              </Link>
-              <Link
-                href={`/league/${leagueId}/drafts`}
-                className="rounded-2xl border border-white/20 bg-white/10 px-5 py-3 font-black backdrop-blur transition hover:bg-white/20"
-              >
-                Draft Room
-              </Link>
-              <Link
-                href={`/league/${leagueId}/trade-center`}
-                className="rounded-2xl border border-white/20 bg-white/10 px-5 py-3 font-black backdrop-blur transition hover:bg-white/20"
-              >
-                Trade Center
-              </Link>
-              {user ? (
-                <Link
-                  href={`/league/${leagueId}/articles/new`}
-                  className="rounded-2xl bg-emerald-500 px-5 py-3 font-black text-zinc-950 transition hover:bg-emerald-400"
-                >
-                  Write Article
-                </Link>
-              ) : (
-                <Link
-                  href="/login"
-                  className="rounded-2xl bg-emerald-500 px-5 py-3 font-black text-zinc-950 transition hover:bg-emerald-400"
-                >
-                  Log in to Write
-                </Link>
-              )}
-
-              {isAdmin && (
-                <Link
-                  href={`/league/${leagueId}/admin`}
-                  className="rounded-2xl border border-white/20 bg-white/10 px-5 py-3 font-black backdrop-blur transition hover:bg-white/20"
-                >
-                  Admin
-                </Link>
-              )}
-            </div>
+            <LeagueActionsMenu
+              leagueId={leagueId}
+              season={String(selectedSeason)}
+              week={selectedWeek}
+              isLoggedIn={Boolean(user)}
+              isLeagueAdmin={isAdmin}
+            />
           </div>
 
           {latestBreakingNews && (

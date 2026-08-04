@@ -111,7 +111,7 @@ may also put it in Netlify, but the website itself does not contact Sleeper.
 
 ## 6. Choose the website mode
 
-Open a League Letter league's admin page and find **Game Feed**.
+Log in as `mackinnonjack4@gmail.com`, open **Site Admin** in the main navigation, then open **Game Feed Control**. Ordinary league-room admins cannot access or change these settings.
 
 Choose:
 
@@ -125,7 +125,7 @@ This selection applies to:
 - Realtime updates
 - Player pages and biggest plays
 
-Each League Letter league can choose its own website display mode.
+The site owner can choose the website display mode for each League Letter room from this one protected page.
 
 ## 7. Start the worker
 
@@ -195,15 +195,14 @@ That means:
 - Public events can never appear while a league's website mode is Test.
 - Realtime events are checked against the selected website mode before display.
 
-The admin page shows both the current worker mode and website mode. It displays a
-warning when they do not match.
+The protected Site Admin Game Feed page shows the current worker mode, heartbeat, source league, and every room's website mode.
 
 ## Game-day process
 
 1. Make sure your PC will not sleep while plugged in.
 2. Start `START_GAME_FEED_PUBLIC.bat`.
 3. Leave the terminal open during the games.
-4. Confirm the admin status card says `Collector Online · PUBLIC`.
+4. Confirm **Site Admin → Game Feed Control** says `Collector Online · PUBLIC`.
 5. Press `Ctrl+C` after the games.
 
 The first Public poll for a new week seeds the baseline and creates no plays.
@@ -211,7 +210,7 @@ Future point changes create events.
 
 ## Testing process
 
-1. In the league admin page, set **Website feed mode** to `Test` and save.
+1. Open **Site Admin → Game Feed Control**, set the desired room to **Test**, and save.
 2. Start `START_GAME_FEED_TEST.bat`.
 3. Answer `Y` when asked to create sample test cells.
 4. Open the league homepage, Game Feed, and player pages.
@@ -320,12 +319,11 @@ GAME_FEED_SOURCE_SLEEPER_LEAGUE_ID=YOUR_DEEP_SLEEPER_LEAGUE_ID
 
 ### Test cells were created but are not visible
 
-The League Letter league's **Website feed mode** must be set to `Test`.
-The admin page will warn when the running worker mode and website mode differ.
+The League Letter room's **Displayed data** setting must be set to `Test` under **Site Admin → Game Feed Control**.
 
 ### Test cells are visible publicly
 
-Set **Website feed mode** back to `Public` and save. Public mode queries only rows
+Set the room back to **Public** under **Site Admin → Game Feed Control** and save. Public mode queries only rows
 where `feed_mode = 'public'`.
 
 ### The first run creates no real plays
