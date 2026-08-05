@@ -73,6 +73,7 @@ export async function GET(request: Request) {
       .eq('upload_id', upload.id)
       .eq('position', position)
       .order('rank', { ascending: true })
+      .limit(500)
 
     if (rankingsError) throw new Error(rankingsError.message)
 

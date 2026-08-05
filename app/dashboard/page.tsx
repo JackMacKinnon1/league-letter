@@ -3,6 +3,7 @@ import Navbar from '@/components/Navbar'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import DashboardInvites from '@/components/DashboardInvites'
+import { Link2 } from 'lucide-react'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -31,6 +32,7 @@ export default async function DashboardPage() {
     )
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
+    .limit(50)
 
   const { data: invites } = await supabase
     .from('league_invites')
@@ -38,6 +40,7 @@ export default async function DashboardPage() {
     .eq('invited_user_id', user.id)
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
+    .limit(50)
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
@@ -66,6 +69,26 @@ export default async function DashboardPage() {
 
           <DashboardInvites invites={invites || []} />
         </div>
+
+        {!profile?.sleeper_user_id && (
+          <Link
+            href="/profile"
+            className="mt-8 flex flex-col justify-between gap-4 rounded-[2rem] border border-emerald-400/25 bg-emerald-400/[0.08] p-5 transition hover:border-emerald-400/50 md:flex-row md:items-center"
+          >
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-300">
+                <Link2 size={20} />
+              </div>
+              <div>
+                <p className="font-black text-emerald-200">Connect your Sleeper account</p>
+                <p className="mt-1 text-sm leading-6 text-zinc-400">
+                  Link your Sleeper username so Game Feed can automatically recognize your roster and weekly opponent.
+                </p>
+              </div>
+            </div>
+            <span className="shrink-0 text-sm font-black text-emerald-300">Open Profile →</span>
+          </Link>
+        )}
 
         <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {leagues?.map((membership: any) => (

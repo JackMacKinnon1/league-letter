@@ -26,12 +26,12 @@ export default function GameFeedPlayerImage({
   const showQuarterback = isReceivingGameFeedEvent(event)
   const containerClass =
     size === 'preview'
-      ? 'h-12 w-12 rounded-xl'
-      : 'h-16 w-16 rounded-2xl sm:h-20 sm:w-20'
+      ? 'h-10 w-10 rounded-xl sm:h-12 sm:w-12'
+      : 'h-12 w-12 rounded-xl sm:h-20 sm:w-20 sm:rounded-2xl'
   const quarterbackClass =
     size === 'preview'
-      ? 'h-6 w-6 rounded-lg border-2'
-      : 'h-7 w-7 rounded-lg border-2 sm:h-9 sm:w-9 sm:rounded-xl'
+      ? 'h-5 w-5 rounded-md border-2 sm:h-6 sm:w-6 sm:rounded-lg'
+      : 'h-5 w-5 rounded-md border-2 sm:h-9 sm:w-9 sm:rounded-xl'
 
   return (
     <div className={`relative shrink-0 ${containerClass}`}>
@@ -40,7 +40,7 @@ export default function GameFeedPlayerImage({
           href={`/league/${leagueId}/players/${event.primary_player_id}`}
           aria-label={`Open ${event.primary_player_name}`}
           className={`absolute inset-0 flex items-end justify-center overflow-hidden border border-white/10 bg-zinc-950 ${
-            size === 'preview' ? 'rounded-xl' : 'rounded-2xl'
+            size === 'preview' ? 'rounded-xl' : 'rounded-xl sm:rounded-2xl'
           }`}
         >
           <PrimaryImage imageUrl={primaryImage} playerName={event.primary_player_name} />
@@ -48,7 +48,7 @@ export default function GameFeedPlayerImage({
       ) : (
         <span
           className={`absolute inset-0 flex items-end justify-center overflow-hidden border border-white/10 bg-zinc-950 ${
-            size === 'preview' ? 'rounded-xl' : 'rounded-2xl'
+            size === 'preview' ? 'rounded-xl' : 'rounded-xl sm:rounded-2xl'
           }`}
         >
           <PrimaryImage imageUrl={primaryImage} playerName={event.primary_player_name} />
@@ -56,7 +56,7 @@ export default function GameFeedPlayerImage({
       )}
 
       {icon ? (
-        <span className="pointer-events-none absolute left-1 top-1 rounded-lg border border-white/10 bg-zinc-950/90 p-1 text-emerald-300">
+        <span className="pointer-events-none absolute left-0.5 top-0.5 rounded-md border border-white/10 bg-zinc-950/90 p-0.5 text-emerald-300 sm:left-1 sm:top-1 sm:rounded-lg sm:p-1">
           {icon}
         </span>
       ) : null}

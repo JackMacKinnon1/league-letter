@@ -8,6 +8,8 @@ import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
+const PAGE_SIZE = 20
+
 export default async function SiteGameFeedPage() {
   const supabase = await createClient()
   const {
@@ -18,15 +20,17 @@ export default async function SiteGameFeedPage() {
   if (!isSiteAdminEmail(user.email)) redirect('/dashboard')
 
   const adminSupabase = createAdminClient()
-  const [{ data: leagues }, { data: workerStates }] = await Promise.all([
+  const [{ data: leagues, count: leagueCount }, { data: workerStates }] = await Promise.all([
     adminSupabase
       .from('leagues')
-      .select('id,name,game_feed_enabled,game_feed_display_mode')
-      .order('name'),
+      .select('id,name,game_feed_enabled,game_feed_display_mode', { count: 'exact' })
+      .order('name')
+      .range(0, PAGE_SIZE - 1),
     adminSupabase
       .from('game_feed_source_state')
       .select('*')
-      .order('worker_heartbeat_at', { ascending: false, nullsFirst: false }),
+      .order('worker_heartbeat_at', { ascending: false, nullsFirst: false })
+      .limit(2),
   ])
 
   return (
@@ -52,6 +56,7 @@ export default async function SiteGameFeedPage() {
         <SiteGameFeedControl
           initialLeagues={(leagues || []) as any}
           initialWorkerStates={(workerStates || []) as any}
+          initialTotal={leagueCount || 0}
         />
       </section>
     </main>

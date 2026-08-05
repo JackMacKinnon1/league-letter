@@ -207,6 +207,7 @@ async function createBreakingNewsForNewTrades({
     .from('teams')
     .select('*')
     .eq('league_id', appLeagueId)
+    .limit(64)
 
   if (teamsError) {
     throw new Error(teamsError.message)

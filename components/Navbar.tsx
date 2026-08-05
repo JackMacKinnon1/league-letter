@@ -1,13 +1,14 @@
 import Link from '@/components/NoPrefetchLink'
-import { ShieldCheck, Trophy } from 'lucide-react'
+import { ShieldCheck, Trophy, UserRound } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { isSiteAdminEmail } from '@/lib/permissions'
 import LogoutButton from './LogoutButton'
 import MobileNav from './MobileNav'
 
 const authedLinks = [
-  { href: '/dynasty-rankings', label: 'Dynasty Rankings' },
   { href: '/dashboard', label: 'Dashboard' },
+  { href: '/profile', label: 'Profile', icon: 'profile' },
+  { href: '/dynasty-rankings', label: 'Dynasty Rankings' },
   { href: '/leagues/new', label: 'Load League' },
 ]
 
@@ -45,8 +46,9 @@ export default async function Navbar() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="rounded-xl px-3 py-2 transition duration-200 hover:-translate-y-0.5 hover:bg-white/[0.07] hover:text-white"
+                  className="inline-flex items-center gap-2 rounded-xl px-3 py-2 transition duration-200 hover:-translate-y-0.5 hover:bg-white/[0.07] hover:text-white"
                 >
+                  {link.icon === 'profile' && <UserRound size={15} />}
                   {link.label}
                 </Link>
               ))}

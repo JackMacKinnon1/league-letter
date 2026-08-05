@@ -57,6 +57,8 @@ export async function GET(request: Request) {
 
     if (!includeAll) {
       query = query.range((page - 1) * pageSize, page * pageSize - 1)
+    } else {
+      query = query.limit(500)
     }
 
     if (search) {

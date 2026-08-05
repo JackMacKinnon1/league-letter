@@ -21,12 +21,14 @@ export default async function TrophyRoomPage({
     .select('*')
     .eq('league_id', leagueId)
     .order('season', { ascending: false })
+    .limit(100)
 
   const { data: teamSeasons } = await supabase
     .from('team_season_stats')
     .select('*')
     .eq('league_id', leagueId)
     .order('season', { ascending: false })
+    .limit(1000)
 
   const teamsBySeason = new Map<string, any[]>()
 

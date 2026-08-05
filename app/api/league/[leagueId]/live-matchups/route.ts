@@ -39,8 +39,9 @@ export async function GET(
           .eq('league_id', leagueId)
           .eq('season', season)
           .eq('week', selectedWeek)
-          .order('matchup_id', { ascending: true }),
-        supabase.from('teams').select('*').eq('league_id', leagueId),
+          .order('matchup_id', { ascending: true })
+          .limit(64),
+        supabase.from('teams').select('*').eq('league_id', leagueId).limit(64),
       ])
 
     if (matchupError) {

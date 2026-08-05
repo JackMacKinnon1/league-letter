@@ -1,5 +1,6 @@
 'use client'
 
+import PaginationControls from '@/components/PaginationControls'
 import {
   AlertTriangle,
   Beaker,
@@ -16,6 +17,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
 type FeedMode = 'public' | 'test'
+
+const PAGE_SIZE = 20
 
 type LeagueSetting = {
   id: string
@@ -51,14 +54,19 @@ type WorkerState = {
 export default function SiteGameFeedControl({
   initialLeagues,
   initialWorkerStates,
+  initialTotal,
 }: {
   initialLeagues: LeagueSetting[]
   initialWorkerStates: WorkerState[]
+  initialTotal: number
 }) {
   const [leagues, setLeagues] = useState<NormalizedLeagueSetting[]>(() =>
     normalizeLeagues(initialLeagues)
   )
   const [workerStates, setWorkerStates] = useState(initialWorkerStates)
+  const [total, setTotal] = useState(initialTotal)
+  const [page, setPage] = useState(1)
+  const [loadingPage, setLoadingPage] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [copied, setCopied] = useState(false)
@@ -70,12 +78,36 @@ export default function SiteGameFeedControl({
 
   const refresh = useCallback(async () => {
     try {
-      const response = await fetch('/api/site-admin/game-feed', { cache: 'no-store' })
+      const response = await fetch(
+        `/api/site-admin/game-feed?page=${page}&pageSize=${PAGE_SIZE}`,
+        { cache: 'no-store' }
+      )
       if (!response.ok) return
       const json = await response.json()
       setWorkerStates(json.workerStates || [])
     } catch {
       // Preserve the last known state and retry on the next interval.
+    }
+  }, [page])
+
+  const loadPage = useCallback(async (nextPage: number) => {
+    setLoadingPage(true)
+    setMessage('')
+    try {
+      const response = await fetch(
+        `/api/site-admin/game-feed?page=${nextPage}&pageSize=${PAGE_SIZE}`,
+        { cache: 'no-store' }
+      )
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.error || 'Could not load League Letter rooms.')
+      setLeagues(normalizeLeagues(json.leagues || []))
+      setWorkerStates(json.workerStates || [])
+      setTotal(Number(json.total || 0))
+      setPage(nextPage)
+    } catch (error: any) {
+      setMessage(error?.message || 'Could not load League Letter rooms.')
+    } finally {
+      setLoadingPage(false)
     }
   }, [])
 
@@ -95,12 +127,37 @@ export default function SiteGameFeedControl({
     )
   }
 
-  function updateAll(
+  async function updateAll(
     patch: Partial<
       Pick<NormalizedLeagueSetting, 'game_feed_enabled' | 'game_feed_display_mode'>
     >
   ) {
-    setLeagues((current) => current.map((league) => ({ ...league, ...patch })))
+    setSaving(true)
+    setMessage('')
+    try {
+      const response = await fetch('/api/site-admin/game-feed', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bulk: {
+            ...(typeof patch.game_feed_enabled === 'boolean'
+              ? { enabled: patch.game_feed_enabled }
+              : {}),
+            ...(patch.game_feed_display_mode
+              ? { displayMode: patch.game_feed_display_mode }
+              : {}),
+          },
+        }),
+      })
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.error || 'Could not update all rooms.')
+      await loadPage(page)
+      setMessage('Updated every League Letter room.')
+    } catch (error: any) {
+      setMessage(error?.message || 'Could not update all rooms.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function save() {
@@ -123,9 +180,7 @@ export default function SiteGameFeedControl({
       const json = await response.json()
       if (!response.ok) throw new Error(json.error || 'Could not save Game Feed settings.')
 
-      setLeagues(normalizeLeagues(json.leagues || leagues))
-      setWorkerStates(json.workerStates || workerStates)
-      setMessage('Game Feed settings saved for every League Letter room.')
+      setMessage(`Game Feed settings saved for page ${page}.`)
     } catch (error: any) {
       setMessage(error?.message || 'Could not save Game Feed settings.')
     } finally {
@@ -261,28 +316,28 @@ export default function SiteGameFeedControl({
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => updateAll({ game_feed_enabled: true })}
+              onClick={() => void updateAll({ game_feed_enabled: true })}
               className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-black text-zinc-200 transition hover:bg-white/[0.08]"
             >
               Enable all
             </button>
             <button
               type="button"
-              onClick={() => updateAll({ game_feed_enabled: false })}
+              onClick={() => void updateAll({ game_feed_enabled: false })}
               className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-black text-zinc-400 transition hover:bg-white/[0.08] hover:text-white"
             >
               Disable all
             </button>
             <button
               type="button"
-              onClick={() => updateAll({ game_feed_display_mode: 'public' })}
+              onClick={() => void updateAll({ game_feed_display_mode: 'public' })}
               className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-sm font-black text-emerald-300 transition hover:bg-emerald-400/15"
             >
               All public
             </button>
             <button
               type="button"
-              onClick={() => updateAll({ game_feed_display_mode: 'test' })}
+              onClick={() => void updateAll({ game_feed_display_mode: 'test' })}
               className="rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-sm font-black text-amber-300 transition hover:bg-amber-400/15"
             >
               All test
@@ -352,6 +407,14 @@ export default function SiteGameFeedControl({
           })}
         </div>
 
+        <PaginationControls
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={total}
+          disabled={loadingPage || saving}
+          onPageChange={(nextPage) => void loadPage(nextPage)}
+        />
+
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <button
             type="button"
@@ -360,7 +423,7 @@ export default function SiteGameFeedControl({
             className="flex items-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 font-black text-zinc-950 transition hover:bg-emerald-400 disabled:opacity-50"
           >
             <Save size={17} />
-            {saving ? 'Saving…' : 'Save all settings'}
+            {saving ? 'Saving…' : 'Save this page'}
           </button>
           {message && <p className="text-sm font-bold text-zinc-300">{message}</p>}
         </div>

@@ -60,6 +60,7 @@ export default function FeaturedMatchupManager({
         .eq('season', selectedSeason)
         .eq('week', selectedWeek)
         .order('matchup_id', { ascending: true })
+        .limit(64)
 
       if (matchupError) {
         setMessage(matchupError.message)

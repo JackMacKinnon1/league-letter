@@ -76,6 +76,7 @@ export default async function TeamRosterPage({
         .from('team_season_stats')
         .select('*')
         .eq('league_id', leagueId)
+        .limit(1000)
 
     const matchingSeasonStats =
         seasonStatsRows?.filter((row: any) => {
@@ -100,6 +101,7 @@ export default async function TeamRosterPage({
         .from('season_winners')
         .select('*')
         .eq('league_id', leagueId)
+        .limit(100)
 
     const leagueTitleYears = (seasonWinners || [])
         .filter((winner: any) => {

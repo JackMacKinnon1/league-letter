@@ -41,7 +41,8 @@ export async function GET(
         adminSupabase
           .from('game_feed_source_state')
           .select('*')
-          .order('worker_heartbeat_at', { ascending: false, nullsFirst: false }),
+          .order('worker_heartbeat_at', { ascending: false, nullsFirst: false })
+      .limit(2),
       ])
 
     if (error) {
@@ -98,6 +99,7 @@ export async function PATCH(
       .from('game_feed_source_state')
       .select('*')
       .order('worker_heartbeat_at', { ascending: false, nullsFirst: false })
+      .limit(2)
 
     if (stateError) {
       return NextResponse.json({ error: stateError.message }, { status: 500 })

@@ -1,10 +1,11 @@
 import Link from '@/components/NoPrefetchLink'
-import { Menu, ShieldCheck, X } from 'lucide-react'
+import { Menu, ShieldCheck, UserRound, X } from 'lucide-react'
 import LogoutButton from './LogoutButton'
 
 type NavLink = {
   href: string
   label: string
+  icon?: string
 }
 
 export default function MobileNav({
@@ -41,8 +42,9 @@ export default function MobileNav({
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="block rounded-xl px-3 py-3 text-sm font-semibold text-zinc-200 transition active:bg-white/[0.08] hover:bg-white/[0.06] hover:text-white"
+                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-zinc-200 transition active:bg-white/[0.08] hover:bg-white/[0.06] hover:text-white"
                 >
+                  {link.icon === 'profile' && <UserRound size={17} />}
                   {link.label}
                 </Link>
               ))}

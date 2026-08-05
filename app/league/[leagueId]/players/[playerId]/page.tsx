@@ -12,15 +12,20 @@ import { createClient } from '@/lib/supabase/server'
 import { Activity, ArrowLeft, Beaker, Radio, Trophy } from 'lucide-react'
 import { notFound, redirect } from 'next/navigation'
 
+const RECENT_PAGE_SIZE = 10
+
 export default async function LeaguePlayerPage({
   params,
   searchParams,
 }: {
   params: Promise<{ leagueId: string; playerId: string }>
-  searchParams: Promise<{ season?: string; week?: string }>
+  searchParams: Promise<{ season?: string; week?: string; eventPage?: string }>
 }) {
   const { leagueId, playerId } = await params
-  const { season, week } = await searchParams
+  const { season, week, eventPage } = await searchParams
+  const recentPage = Math.max(1, Math.trunc(Number(eventPage || 1)) || 1)
+  const recentFrom = (recentPage - 1) * RECENT_PAGE_SIZE
+  const recentTo = recentFrom + RECENT_PAGE_SIZE - 1
   if (!isSafeSleeperPlayerId(playerId)) notFound()
   const supabase = await createClient()
 
@@ -63,7 +68,7 @@ export default async function LeaguePlayerPage({
         .eq('feed_mode', feedMode)
         .or(`primary_player_id.eq.${playerId},secondary_player_id.eq.${playerId}`)
         .order('id', { ascending: false })
-        .limit(20),
+        .range(recentFrom, recentTo),
       supabase
         .from('game_feed_events')
         .select('id', { count: 'exact', head: true })
@@ -88,6 +93,7 @@ export default async function LeaguePlayerPage({
     .slice(0, 8)
   const recentEvents = (recent || []) as GameFeedEvent[]
   const imageUrl = sleeperPlayerImageUrl(playerId)
+  const recentPages = Math.max(1, Math.ceil((eventCount || 0) / RECENT_PAGE_SIZE))
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
@@ -213,6 +219,28 @@ export default async function LeaguePlayerPage({
               </div>
             )}
           </div>
+
+          {recentPages > 1 && (
+            <div className="mt-5 flex items-center justify-between gap-3 text-sm">
+              {recentPage > 1 ? (
+                <Link
+                  href={`/league/${leagueId}/players/${playerId}?season=${selectedSeason}&week=${selectedWeek}&eventPage=${recentPage - 1}`}
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 font-bold hover:border-zinc-500"
+                >
+                  ← Newer
+                </Link>
+              ) : <span />}
+              <span className="font-black text-zinc-500">Page {recentPage} of {recentPages}</span>
+              {recentPage < recentPages ? (
+                <Link
+                  href={`/league/${leagueId}/players/${playerId}?season=${selectedSeason}&week=${selectedWeek}&eventPage=${recentPage + 1}`}
+                  className="rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 font-bold hover:border-zinc-500"
+                >
+                  Older →
+                </Link>
+              ) : <span />}
+            </div>
+          )}
         </aside>
       </section>
     </main>

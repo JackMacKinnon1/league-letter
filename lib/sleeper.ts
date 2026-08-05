@@ -100,6 +100,26 @@ export async function getSleeperUsers(leagueId: string) {
   return sleeperFetch<SleeperUser[]>(`/league/${leagueId}/users`)
 }
 
+export async function getSleeperUser(username: string) {
+  const cleanUsername = username.trim()
+
+  if (!cleanUsername) return null
+
+  const response = await fetch(
+    `${SLEEPER_BASE_URL}/user/${encodeURIComponent(cleanUsername)}`,
+    { cache: 'no-store' }
+  )
+
+  if (response.status === 404) return null
+
+  if (!response.ok) {
+    throw new Error('Sleeper could not verify that account right now.')
+  }
+
+  const user = (await response.json()) as SleeperUser | null
+  return user?.user_id ? user : null
+}
+
 export async function getSleeperRosters(leagueId: string) {
   return sleeperFetch<SleeperRoster[]>(`/league/${leagueId}/rosters`)
 }

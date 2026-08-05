@@ -1,3 +1,15 @@
+export type GameFeedLeagueTeam = {
+  sleeper_roster_id: number
+  sleeper_owner_id: string | null
+  team_name: string
+  players: string[] | null
+}
+
+export type GameFeedMatchupRow = {
+  sleeper_roster_id: number
+  matchup_id: number | null
+}
+
 export type GameFeedEvent = {
   id: number
   league_id: string

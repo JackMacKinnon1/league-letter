@@ -508,6 +508,7 @@ async function syncTeamPointProfiles({
     .eq('league_id', appLeagueId)
     .eq('season', lastSeason)
     .not('points', 'is', null)
+    .limit(1000)
 
   if (matchupsError) {
     throw new Error(matchupsError.message)
@@ -518,6 +519,7 @@ async function syncTeamPointProfiles({
     .select('sleeper_roster_id, sleeper_owner_id, team_name, season')
     .eq('league_id', appLeagueId)
     .eq('season', lastSeason)
+    .limit(64)
 
   if (lastSeasonTeamsError) {
     throw new Error(lastSeasonTeamsError.message)

@@ -1,10 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Gauge, Plus, Save, Trash2, Eye, EyeOff } from 'lucide-react'
 import LeagueTicker from '@/components/LeagueTicker'
+import PaginationControls from '@/components/PaginationControls'
 
 type TickerSettings = {
   id?: string
@@ -25,6 +26,8 @@ type TickerItem = {
   is_active?: boolean
   sort_order?: number | null
 }
+
+const PAGE_SIZE = 8
 
 const DEFAULT_SETTINGS: TickerSettings = {
   league_id: '',
@@ -49,11 +52,13 @@ export default function LeagueTickerManager({
   leagueId,
   initialSettings,
   initialItems,
+  initialTotal,
   setupError,
 }: {
   leagueId: string
   initialSettings: TickerSettings | null
   initialItems: TickerItem[]
+  initialTotal: number
   setupError?: string
 }) {
   const supabase = createClient()
@@ -63,6 +68,9 @@ export default function LeagueTickerManager({
     league_id: leagueId,
   })
   const [items, setItems] = useState<TickerItem[]>(initialItems || [])
+  const [total, setTotal] = useState(initialTotal)
+  const [page, setPage] = useState(1)
+  const [loadingPage, setLoadingPage] = useState(false)
   const [newEmoji, setNewEmoji] = useState('🔥')
   const [newText, setNewText] = useState('')
   const [newLink, setNewLink] = useState('')
@@ -99,6 +107,27 @@ export default function LeagueTickerManager({
     ]
   }, [items, leagueId])
 
+
+  const loadPage = useCallback(async (nextPage: number) => {
+    setLoadingPage(true)
+    setStatus('')
+    try {
+      const response = await fetch(
+        `/api/league/${leagueId}/admin/ticker-items?page=${nextPage}&pageSize=${PAGE_SIZE}`,
+        { cache: 'no-store' }
+      )
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.error || 'Could not load ticker items.')
+      setItems(json.items || [])
+      setTotal(Number(json.total || 0))
+      setPage(nextPage)
+    } catch (error: any) {
+      setStatus(error?.message || 'Could not load ticker items.')
+    } finally {
+      setLoadingPage(false)
+    }
+  }, [leagueId])
+
   async function saveSettings() {
     setStatus('')
     setSaving(true)
@@ -134,10 +163,9 @@ export default function LeagueTickerManager({
       return
     }
 
-    const nextSortOrder =
-      Math.max(0, ...items.map((item) => Number(item.sort_order || 0))) + 1
+    const nextSortOrder = total + 1
 
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('league_ticker_items')
       .insert({
         league_id: leagueId,
@@ -155,11 +183,12 @@ export default function LeagueTickerManager({
       return
     }
 
-    setItems((current) => [...current, data])
+    setTotal((current) => current + 1)
     setNewText('')
     setNewLink('')
     setNewEmoji('🔥')
     setStatus('Ticker item added.')
+    await loadPage(1)
   }
 
   async function updateItem(item: TickerItem, patch: Partial<TickerItem>) {
@@ -190,15 +219,19 @@ export default function LeagueTickerManager({
     const confirmed = window.confirm('Delete this ticker item?')
     if (!confirmed) return
 
-    setItems((current) => current.filter((existing) => existing.id !== item.id))
-
     const { error } = await supabase
       .from('league_ticker_items')
       .delete()
       .eq('id', item.id)
       .eq('league_id', leagueId)
 
-    if (error) setStatus(error.message)
+    if (error) {
+      setStatus(error.message)
+      return
+    }
+    const remainingTotal = Math.max(0, total - 1)
+    const lastPage = Math.max(1, Math.ceil(remainingTotal / PAGE_SIZE))
+    await loadPage(Math.min(page, lastPage))
   }
 
   async function moveItem(item: TickerItem, direction: -1 | 1) {
@@ -424,11 +457,19 @@ export default function LeagueTickerManager({
             ))}
         </AnimatePresence>
 
-        {!items.length && (
+        {!items.length && !loadingPage && (
           <p className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-950 p-5 text-zinc-400">
             No saved ticker items yet. Add a few items above and they will scroll across the league home page.
           </p>
         )}
+
+        <PaginationControls
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={total}
+          disabled={loadingPage}
+          onPageChange={loadPage}
+        />
       </div>
 
       {status && <p className="mt-4 text-sm font-bold text-zinc-400">{status}</p>}

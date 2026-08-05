@@ -7,7 +7,7 @@ import LiveMatchupsPanel from '@/components/LiveMatchupsPanel'
 import LeagueTicker from '@/components/LeagueTicker'
 import GameFeedPreview from '@/components/GameFeedPreview'
 import LeagueActionsMenu from '@/components/LeagueActionsMenu'
-import type { GameFeedEvent } from '@/lib/gameFeed'
+import type { GameFeedEvent, GameFeedLeagueTeam, GameFeedMatchupRow } from '@/lib/gameFeed'
 import { createClient } from '@/lib/supabase/server'
 import { isLeagueAdmin } from '@/lib/permissions'
 import {
@@ -44,6 +44,7 @@ export default async function LeaguePage({
     .select('season')
     .eq('league_id', leagueId)
     .not('season', 'is', null)
+    .limit(500)
 
   const availableSeasons = Array.from(
     new Set((matchupSeasonRows || []).map((row: any) => String(row.season)))
@@ -67,6 +68,7 @@ export default async function LeaguePage({
     .eq('league_id', leagueId)
     .order('wins', { ascending: false })
     .order('points_for', { ascending: false })
+    .limit(64)
 
   const { data: selectedSeasonStats } = await supabase
     .from('team_season_stats')
@@ -75,6 +77,7 @@ export default async function LeaguePage({
     .eq('season', selectedSeason)
     .order('wins', { ascending: false })
     .order('points_for', { ascending: false })
+    .limit(64)
 
   const teamsForSelectedSeason =
     selectedSeasonStats && selectedSeasonStats.length > 0
@@ -94,6 +97,30 @@ export default async function LeaguePage({
     .eq('season', selectedSeason)
     .eq('week', selectedWeek)
     .order('matchup_id', { ascending: true })
+    .limit(64)
+
+  const [{ data: feedMember }, { data: feedProfile }] = user
+    ? await Promise.all([
+        supabase
+          .from('league_members')
+          .select('sleeper_user_id')
+          .eq('league_id', leagueId)
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        supabase
+          .from('profiles')
+          .select('sleeper_user_id')
+          .eq('id', user.id)
+          .maybeSingle(),
+      ])
+    : [{ data: null }, { data: null }]
+
+  const feedLinkedSleeperUserId =
+    feedMember?.sleeper_user_id || feedProfile?.sleeper_user_id || null
+  const feedTeams = (teams || []) as GameFeedLeagueTeam[]
+  const feedAutoRoster = feedTeams.find(
+    (team) => feedLinkedSleeperUserId && team.sleeper_owner_id === feedLinkedSleeperUserId
+  )
 
   const { data: recentGameFeedEvents } = await supabase
     .from('game_feed_events')
@@ -128,6 +155,7 @@ export default async function LeaguePage({
     .eq('is_active', true)
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true })
+    .limit(25)
 
   const { data: featured } = await supabase
     .from('featured_matchups')
@@ -144,6 +172,7 @@ export default async function LeaguePage({
     .eq('season', selectedSeason)
     .eq('week', selectedWeek)
     .order('rank', { ascending: true })
+    .limit(64)
 
   const { data: articles } = await supabase
     .from('articles')
@@ -233,18 +262,18 @@ export default async function LeaguePage({
       : null
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white">
+    <main className="min-h-screen overflow-x-hidden bg-zinc-950 text-white">
       <Navbar />
       <LeagueTicker settings={tickerSettings} items={tickerItems || []} />
-      <section className="border-b border-zinc-800 bg-white/[0.015] px-4 py-12">
-        <div className="mx-auto max-w-7xl">
+      <section className="border-b border-zinc-800 bg-white/[0.015] px-3 py-8 sm:px-4 sm:py-12">
+        <div className="mx-auto min-w-0 max-w-7xl">
           <p className="text-sm font-black uppercase tracking-[0.35em] text-emerald-300">
             League Letter
           </p>
 
           <div className="mt-4 flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
             <div>
-              <h1 className="max-w-4xl text-5xl font-black tracking-tight md:text-7xl">
+              <h1 className="max-w-4xl break-words text-4xl font-black tracking-tight sm:text-5xl md:text-7xl">
                 {league?.name}
               </h1>
 
@@ -364,26 +393,26 @@ export default async function LeaguePage({
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 lg:grid-cols-[1.65fr_0.95fr]">
-        <div className="space-y-6">
-          <section className="rounded-[2rem] border border-emerald-900/70 bg-zinc-900 p-6 shadow-2xl">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500 text-zinc-950">
+      <section className="mx-auto grid min-w-0 max-w-7xl gap-5 px-3 py-6 sm:gap-6 sm:px-4 sm:py-8 lg:grid-cols-[1.65fr_0.95fr]">
+        <div className="min-w-0 space-y-5 sm:space-y-6">
+          <section className="min-w-0 overflow-hidden rounded-[1.5rem] border border-emerald-900/70 bg-zinc-900 p-4 shadow-2xl sm:rounded-[2rem] sm:p-6">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-zinc-950 sm:h-11 sm:w-11 sm:rounded-2xl">
                 <Swords size={22} />
               </div>
 
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.25em] text-emerald-400">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400 sm:text-xs sm:tracking-[0.25em]">
                   Featured Matchup
                 </p>
-                <h2 className="text-3xl font-black">
+                <h2 className="break-words text-2xl font-black leading-tight sm:text-3xl">
                   {featured?.headline || 'No featured matchup yet'}
                 </h2>
               </div>
             </div>
 
             {featuredTeams ? (
-              <div className="mt-6">
+              <div className="mt-5 min-w-0 sm:mt-6">
                 {showProjectedWinChances && featuredTeams[0] && featuredTeams[1] && (
                   <FeaturedWinChanceOverlay
                     firstTeam={featuredTeams[0]}
@@ -392,7 +421,7 @@ export default async function LeaguePage({
                   />
                 )}
 
-                <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-center">
+                <div className="mt-4 grid min-w-0 gap-3 sm:gap-4 md:grid-cols-[1fr_auto_1fr] md:items-center">
                   <FeaturedTeam
                     team={featuredTeams[0]}
                     leagueId={leagueId}
@@ -411,7 +440,7 @@ export default async function LeaguePage({
                 </div>
 
                 {featured?.description && (
-                  <p className="mt-5 rounded-2xl bg-zinc-950 p-4 leading-7 text-zinc-300">
+                  <p className="mt-4 break-words rounded-2xl bg-zinc-950 p-3 text-sm leading-6 text-zinc-300 sm:mt-5 sm:p-4 sm:text-base sm:leading-7">
                     {featured.description}
                   </p>
                 )}
@@ -430,6 +459,9 @@ export default async function LeaguePage({
             week={selectedWeek}
             feedMode={gameFeedMode}
             events={(recentGameFeedEvents || []) as GameFeedEvent[]}
+            teams={feedTeams}
+            matchupRows={(matchups || []) as GameFeedMatchupRow[]}
+            initialRosterId={feedAutoRoster ? Number(feedAutoRoster.sleeper_roster_id) : null}
           />
 
           <div>
@@ -517,7 +549,7 @@ export default async function LeaguePage({
           </section>
         </div>
 
-        <aside className="space-y-6">
+        <aside className="min-w-0 space-y-6">
           <section className="rounded-[2rem] border border-zinc-800 bg-zinc-900 p-6">
             <div className="flex items-center justify-between">
               <h2 className="text-3xl font-black">Power Rankings</h2>
@@ -672,15 +704,15 @@ function FeaturedTeam({
   selectedSeason: string
 }) {
   return (
-    <div className="rounded-3xl border border-zinc-800 bg-zinc-950 p-5 text-center">
+    <div className="min-w-0 rounded-2xl border border-zinc-800 bg-zinc-950 p-4 text-center sm:rounded-3xl sm:p-5">
       <Link
         href={`/league/${leagueId}/teams/${team?.sleeper_roster_id}?season=${selectedSeason}`}
-        className="text-xl font-black hover:text-emerald-400"
+        className="block break-words text-base font-black leading-tight hover:text-emerald-400 sm:text-xl"
       >
         {team?.team_name || 'Unknown Team'}
       </Link>
 
-      <p className="mt-2 text-5xl font-black text-emerald-400">
+      <p className="mt-2 text-4xl font-black leading-none text-emerald-400 sm:text-5xl">
         {Number(team?.points || 0).toFixed(2)}
       </p>
 
@@ -822,37 +854,37 @@ function WinChanceBar({
   const firstFavored = firstChance >= secondChance
 
   return (
-    <div className={`overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 ${className}`}>
-      <div className="flex h-24 w-full overflow-hidden">
+    <div className={`min-w-0 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 ${className}`}>
+      <div className="flex h-20 w-full min-w-0 overflow-hidden sm:h-24">
         <div
-          className="relative flex min-w-0 flex-col justify-center overflow-hidden bg-emerald-500/15 px-3 text-emerald-300"
+          className="relative flex min-w-0 flex-col justify-center overflow-hidden bg-emerald-500/15 px-2 text-emerald-300 sm:px-3"
           style={{ width: `${firstWidth}%` }}
           title={`${firstLabel}: ${firstChance.toFixed(1)}%`}
         >
           <div className="absolute inset-0 bg-emerald-500/10" />
-          <div className="relative min-w-[4rem]">
-            <p className="truncate text-xs font-bold uppercase tracking-[0.2em]">
+          <div className="relative min-w-0">
+            <p className="truncate text-[9px] font-bold uppercase tracking-[0.12em] sm:text-xs sm:tracking-[0.2em]">
               {firstLabel}
             </p>
-            <p className="mt-1 text-2xl font-black">{firstChance.toFixed(1)}%</p>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-70">
+            <p className="mt-0.5 text-xl font-black leading-none sm:mt-1 sm:text-2xl">{firstChance.toFixed(1)}%</p>
+            <p className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.12em] opacity-70 sm:text-[10px] sm:tracking-[0.18em]">
               Win chance
             </p>
           </div>
         </div>
 
         <div
-          className="relative flex min-w-0 flex-col justify-center overflow-hidden bg-red-500/10 px-3 text-red-300"
+          className="relative flex min-w-0 flex-col justify-center overflow-hidden bg-red-500/10 px-2 text-red-300 sm:px-3"
           style={{ width: `${secondWidth}%` }}
           title={`${secondLabel}: ${secondChance.toFixed(1)}%`}
         >
           <div className="absolute inset-0 bg-red-500/10" />
-          <div className="relative min-w-[4rem]">
-            <p className="truncate text-xs font-bold uppercase tracking-[0.2em]">
+          <div className="relative min-w-0">
+            <p className="truncate text-[9px] font-bold uppercase tracking-[0.12em] sm:text-xs sm:tracking-[0.2em]">
               {secondLabel}
             </p>
-            <p className="mt-1 text-2xl font-black">{secondChance.toFixed(1)}%</p>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-70">
+            <p className="mt-0.5 text-xl font-black leading-none sm:mt-1 sm:text-2xl">{secondChance.toFixed(1)}%</p>
+            <p className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.12em] opacity-70 sm:text-[10px] sm:tracking-[0.18em]">
               Win chance
             </p>
           </div>
@@ -866,14 +898,14 @@ function WinChanceBar({
         />
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-zinc-800 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">
-        <span className={firstFavored ? 'text-emerald-300' : ''}>{firstLabel}</span>
-        <span className={!firstFavored ? 'text-red-300' : ''}>{secondLabel}</span>
+      <div className="flex min-w-0 items-center justify-between gap-2 border-t border-zinc-800 px-2.5 py-2 text-[9px] font-bold uppercase tracking-[0.12em] text-zinc-500 sm:gap-3 sm:px-3 sm:text-[11px] sm:tracking-[0.18em]">
+        <span className={`min-w-0 max-w-[48%] truncate ${firstFavored ? 'text-emerald-300' : ''}`}>{firstLabel}</span>
+        <span className={`min-w-0 max-w-[48%] truncate text-right ${!firstFavored ? 'text-red-300' : ''}`}>{secondLabel}</span>
       </div>
 
       {showNote && (
-        <div className="border-t border-zinc-800 px-4 py-2">
-          <p className="text-xs text-zinc-500">
+        <div className="border-t border-zinc-800 px-3 py-2 sm:px-4">
+          <p className="break-words text-[10px] leading-4 text-zinc-500 sm:text-xs">
             Projected using last season average points/week and weekly volatility.
           </p>
         </div>

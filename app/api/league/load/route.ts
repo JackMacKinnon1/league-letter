@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import {
   getSleeperLeague,
@@ -31,12 +32,28 @@ export async function POST(req: Request) {
       )
     }
 
-    await supabase.from('profiles').upsert({
-      id: user.id,
-      email: user.email,
-      username: user.email,
-      display_name: user.email,
-    })
+    const admin = createAdminClient()
+    const { data: existingProfile } = await admin
+      .from('profiles')
+      .select('email,username,display_name,sleeper_user_id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const accountProfile = existingProfile || {
+      email: user.email || null,
+      username: user.email?.split('@')[0] || `user-${user.id.slice(0, 8)}`,
+      display_name: user.email?.split('@')[0] || user.email || 'League Letter user',
+      sleeper_user_id: null,
+    }
+
+    if (!existingProfile) {
+      await admin.from('profiles').upsert({
+        id: user.id,
+        email: accountProfile.email,
+        username: accountProfile.username,
+        display_name: accountProfile.display_name,
+      })
+    }
 
     const { data: existingLeague } = await supabase
       .from('leagues')
@@ -45,21 +62,39 @@ export async function POST(req: Request) {
       .maybeSingle()
 
     if (existingLeague) {
-      const { data: existingMember } = await supabase
+      const { data: existingMember } = await admin
         .from('league_members')
         .select('*')
         .eq('league_id', existingLeague.id)
         .eq('user_id', user.id)
         .maybeSingle()
 
+      if (accountProfile.sleeper_user_id) {
+        await admin
+          .from('league_members')
+          .delete()
+          .eq('league_id', existingLeague.id)
+          .eq('sleeper_user_id', accountProfile.sleeper_user_id)
+          .is('user_id', null)
+      }
+
       if (!existingMember) {
-        await supabase.from('league_members').insert({
+        await admin.from('league_members').insert({
           league_id: existingLeague.id,
           user_id: user.id,
-          display_name: user.email,
+          sleeper_user_id: accountProfile.sleeper_user_id,
+          display_name: accountProfile.display_name || accountProfile.username || user.email,
           role: 'member',
           can_write: false,
         })
+      } else if (
+        accountProfile.sleeper_user_id &&
+        existingMember.sleeper_user_id !== accountProfile.sleeper_user_id
+      ) {
+        await admin
+          .from('league_members')
+          .update({ sleeper_user_id: accountProfile.sleeper_user_id })
+          .eq('id', existingMember.id)
       }
 
       return NextResponse.json({
@@ -96,12 +131,13 @@ export async function POST(req: Request) {
       )
     }
 
-    const { error: adminMemberError } = await supabase
+    const { error: adminMemberError } = await admin
       .from('league_members')
       .insert({
         league_id: newLeague.id,
         user_id: user.id,
-        display_name: user.email,
+        sleeper_user_id: accountProfile.sleeper_user_id,
+        display_name: accountProfile.display_name || accountProfile.username || user.email,
         role: 'admin',
         can_write: true,
       })
@@ -113,21 +149,23 @@ export async function POST(req: Request) {
       )
     }
 
-    const sleeperMembers = sleeperUsers.map((sleeperUser) => ({
-      league_id: newLeague.id,
-      user_id: null,
-      sleeper_user_id: sleeperUser.user_id,
-      display_name:
-        sleeperUser.metadata?.team_name ||
-        sleeperUser.display_name ||
-        sleeperUser.username,
-      avatar: sleeperAvatarUrl(sleeperUser.avatar),
-      role: 'sleeper_member',
-      can_write: false,
-    }))
+    const sleeperMembers = sleeperUsers
+      .filter((sleeperUser) => sleeperUser.user_id !== accountProfile.sleeper_user_id)
+      .map((sleeperUser) => ({
+        league_id: newLeague.id,
+        user_id: null,
+        sleeper_user_id: sleeperUser.user_id,
+        display_name:
+          sleeperUser.metadata?.team_name ||
+          sleeperUser.display_name ||
+          sleeperUser.username,
+        avatar: sleeperAvatarUrl(sleeperUser.avatar),
+        role: 'sleeper_member',
+        can_write: false,
+      }))
 
     if (sleeperMembers.length > 0) {
-      await supabase.from('league_members').upsert(sleeperMembers, {
+      await admin.from('league_members').upsert(sleeperMembers, {
         onConflict: 'league_id,sleeper_user_id',
       })
     }

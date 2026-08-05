@@ -42,12 +42,14 @@ export default async function TransactionsPage({
         .select('*')
         .eq('league_id', leagueId)
         .order('team_name', { ascending: true })
+        .limit(64)
 
     const { data: transactionSeasonRows } = await supabase
         .from('transactions')
         .select('season')
         .eq('league_id', leagueId)
         .not('season', 'is', null)
+        .limit(500)
 
     const seasons = Array.from(
         new Set((transactionSeasonRows || []).map((row: any) => String(row.season)))

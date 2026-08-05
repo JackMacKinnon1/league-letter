@@ -27,6 +27,7 @@ export default async function MatchupsPage({
     .select('season')
     .eq('league_id', leagueId)
     .not('season', 'is', null)
+    .limit(500)
 
   const availableSeasons = Array.from(
     new Set((matchupSeasonRows || []).map((row: any) => String(row.season)))
@@ -50,11 +51,13 @@ export default async function MatchupsPage({
     .eq('season', selectedSeason)
     .eq('week', selectedWeek)
     .order('matchup_id', { ascending: true })
+    .limit(64)
 
   const { data: teams } = await supabase
     .from('teams')
     .select('*')
     .eq('league_id', leagueId)
+    .limit(64)
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">

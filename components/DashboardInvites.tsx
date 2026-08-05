@@ -20,14 +20,21 @@ export default function DashboardInvites({ invites }: { invites: any[] }) {
       return
     }
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name,username,email')
+      .eq('id', user.id)
+      .maybeSingle()
+
     const { error: memberError } = await supabase.from('league_members').upsert(
       {
         league_id: invite.league_id,
         user_id: user.id,
         display_name:
-          invite.profiles?.display_name ||
-          invite.profiles?.username ||
-          invite.profiles?.email,
+          profile?.display_name ||
+          profile?.username ||
+          profile?.email ||
+          user.email,
         role: 'member',
         can_write: invite.can_write,
       },

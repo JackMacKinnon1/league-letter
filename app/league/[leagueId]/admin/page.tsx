@@ -55,6 +55,7 @@ export default async function LeagueAdminPage({
     .select('season')
     .eq('league_id', leagueId)
     .not('season', 'is', null)
+    .limit(500)
 
   const availableSeasons = Array.from(
     new Set((matchupSeasonRows || []).map((row: any) => String(row.season)))
@@ -67,6 +68,7 @@ export default async function LeagueAdminPage({
     .eq('season', currentSeason)
     .eq('week', currentWeek)
     .order('matchup_id', { ascending: true })
+    .limit(64)
 
   const { data: featured } = await supabase
     .from('featured_matchups')
@@ -82,6 +84,7 @@ export default async function LeagueAdminPage({
     .eq('league_id', leagueId)
     .order('wins', { ascending: false })
     .order('points_for', { ascending: false })
+    .limit(64)
 
   const { data: rankings } = await supabase
     .from('power_rankings')
@@ -90,12 +93,14 @@ export default async function LeagueAdminPage({
     .eq('season', currentSeason)
     .eq('week', currentWeek)
     .order('rank', { ascending: true })
+    .limit(64)
 
-  const { data: articles } = await supabase
+  const { data: articles, count: articleCount } = await supabase
     .from('articles')
-    .select('*, profiles(display_name, email)')
+    .select('*, profiles(display_name, email)', { count: 'exact' })
     .eq('league_id', leagueId)
     .order('created_at', { ascending: false })
+    .range(0, 7)
 
   const { data: members } = await supabase
     .from('league_members')
@@ -107,6 +112,7 @@ export default async function LeagueAdminPage({
     )
     .eq('league_id', leagueId)
     .order('created_at', { ascending: true })
+    .limit(100)
 
   const { data: invites } = await supabase
     .from('league_invites')
@@ -119,12 +125,14 @@ export default async function LeagueAdminPage({
     .eq('league_id', leagueId)
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
+    .limit(100)
 
-  const { data: breakingNews } = await supabase
+  const { data: breakingNews, count: breakingNewsCount } = await supabase
     .from('breaking_news')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('league_id', leagueId)
     .order('created_at', { ascending: false })
+    .range(0, 5)
 
   const { data: tickerSettings, error: tickerSettingsError } = await supabase
     .from('league_ticker_settings')
@@ -132,12 +140,13 @@ export default async function LeagueAdminPage({
     .eq('league_id', leagueId)
     .maybeSingle()
 
-  const { data: tickerItems, error: tickerItemsError } = await supabase
+  const { data: tickerItems, count: tickerItemCount, error: tickerItemsError } = await supabase
     .from('league_ticker_items')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('league_id', leagueId)
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true })
+    .range(0, 7)
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
@@ -174,12 +183,14 @@ export default async function LeagueAdminPage({
           leagueId={leagueId}
           initialSettings={tickerSettings}
           initialItems={tickerItems || []}
+          initialTotal={tickerItemCount || 0}
           setupError={tickerSettingsError?.message || tickerItemsError?.message}
         />
 
         <BreakingNewsManager
           leagueId={leagueId}
-          existingNews={breakingNews || []}
+          initialNews={breakingNews || []}
+          initialTotal={breakingNewsCount || 0}
         />
 
         <FeaturedMatchupManager
@@ -198,7 +209,11 @@ export default async function LeagueAdminPage({
           currentRankings={rankings || []}
         />
 
-        <ArticleManager leagueId={leagueId} articles={articles || []} />
+        <ArticleManager
+          leagueId={leagueId}
+          initialArticles={articles || []}
+          initialTotal={articleCount || 0}
+        />
 
         <MemberInviteManager
           leagueId={leagueId}

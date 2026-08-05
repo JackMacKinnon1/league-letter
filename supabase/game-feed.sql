@@ -429,3 +429,15 @@ begin
     alter publication supabase_realtime add table public.game_feed_events;
   end if;
 end $$;
+
+-- Profile-level Sleeper identity used by Game Feed roster highlighting.
+alter table public.profiles
+  add column if not exists sleeper_user_id text,
+  add column if not exists sleeper_username text,
+  add column if not exists sleeper_display_name text,
+  add column if not exists sleeper_avatar text,
+  add column if not exists sleeper_connected_at timestamptz;
+
+create unique index if not exists profiles_sleeper_user_id_unique
+  on public.profiles (sleeper_user_id)
+  where sleeper_user_id is not null;

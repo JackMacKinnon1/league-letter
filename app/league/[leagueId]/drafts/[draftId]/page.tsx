@@ -26,6 +26,7 @@ export default async function DraftBoardPage({
     .from('teams')
     .select('*')
     .eq('league_id', leagueId)
+    .limit(64)
 
   let draft: any = null
   let picks: any[] = []
