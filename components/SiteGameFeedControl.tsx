@@ -24,6 +24,13 @@ type LeagueSetting = {
   game_feed_display_mode?: FeedMode | null
 }
 
+type NormalizedLeagueSetting = {
+  id: string
+  name: string
+  game_feed_enabled: boolean
+  game_feed_display_mode: FeedMode
+}
+
 type WorkerState = {
   feed_mode: FeedMode
   source_sleeper_league_id: string
@@ -48,7 +55,9 @@ export default function SiteGameFeedControl({
   initialLeagues: LeagueSetting[]
   initialWorkerStates: WorkerState[]
 }) {
-  const [leagues, setLeagues] = useState(() => normalizeLeagues(initialLeagues))
+  const [leagues, setLeagues] = useState<NormalizedLeagueSetting[]>(() =>
+    normalizeLeagues(initialLeagues)
+  )
   const [workerStates, setWorkerStates] = useState(initialWorkerStates)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -77,14 +86,20 @@ export default function SiteGameFeedControl({
 
   function updateLeague(
     leagueId: string,
-    patch: Partial<Pick<LeagueSetting, 'game_feed_enabled' | 'game_feed_display_mode'>>
+    patch: Partial<
+      Pick<NormalizedLeagueSetting, 'game_feed_enabled' | 'game_feed_display_mode'>
+    >
   ) {
     setLeagues((current) =>
       current.map((league) => (league.id === leagueId ? { ...league, ...patch } : league))
     )
   }
 
-  function updateAll(patch: Partial<LeagueSetting>) {
+  function updateAll(
+    patch: Partial<
+      Pick<NormalizedLeagueSetting, 'game_feed_enabled' | 'game_feed_display_mode'>
+    >
+  ) {
     setLeagues((current) => current.map((league) => ({ ...league, ...patch })))
   }
 
@@ -378,7 +393,7 @@ function StatusValue({
   )
 }
 
-function normalizeLeagues(leagues: LeagueSetting[]) {
+function normalizeLeagues(leagues: LeagueSetting[]): NormalizedLeagueSetting[] {
   return leagues.map((league) => ({
     ...league,
     game_feed_enabled: league.game_feed_enabled !== false,
