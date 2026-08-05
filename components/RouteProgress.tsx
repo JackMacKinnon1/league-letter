@@ -1,12 +1,11 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function RouteProgress() {
   const pathname = usePathname()
   const [active, setActive] = useState(false)
-  const timerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null)
 
   useEffect(() => {
     const begin = (event: MouseEvent) => {
@@ -50,12 +49,9 @@ export default function RouteProgress() {
   }, [])
 
   useEffect(() => {
-    if (timerRef.current) window.clearTimeout(timerRef.current)
-    timerRef.current = window.setTimeout(() => setActive(false), 260)
+    const timerId = window.setTimeout(() => setActive(false), 260)
 
-    return () => {
-      if (timerRef.current) window.clearTimeout(timerRef.current)
-    }
+    return () => window.clearTimeout(timerId)
   }, [pathname])
 
   return (
