@@ -53,6 +53,8 @@ export async function GET(
     )
     const parsedAfter = Number(url.searchParams.get('after') || 0)
     const after = Number.isSafeInteger(parsedAfter) && parsedAfter > 0 ? parsedAfter : 0
+    const parsedBefore = Number(url.searchParams.get('before') || 0)
+    const before = Number.isSafeInteger(parsedBefore) && parsedBefore > 0 ? parsedBefore : 0
     const playerId = url.searchParams.get('playerId')
     const eventType = url.searchParams.get('eventType') || 'all'
     const confidence = url.searchParams.get('confidence') || 'all'
@@ -81,9 +83,9 @@ export async function GET(
 
     const feedMode = league.game_feed_display_mode === 'test' ? 'test' : 'public'
 
-    let query = supabase
-      .from('game_feed_events')
-      .select('*', { count: 'exact' })
+    let query = (before > 0 || after > 0
+      ? supabase.from('game_feed_events').select('*')
+      : supabase.from('game_feed_events').select('*', { count: 'exact' }))
       .eq('league_id', leagueId)
       .eq('feed_mode', feedMode)
       .eq('season', season)
@@ -106,6 +108,29 @@ export async function GET(
       query = query.or(
         `primary_player_id.in.(${list}),secondary_player_id.in.(${list})`
       )
+    }
+
+    if (before > 0) {
+      const limit = parsePageSize(url.searchParams.get('limit'), 25, 50)
+      const { data, error } = await query
+        .lt('id', before)
+        .order('id', { ascending: false })
+        .limit(limit + 1)
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      const rows = data || []
+      const hasMore = rows.length > limit
+      const events = rows.slice(0, limit)
+      const ids = events.map((event: any) => Number(event.id)).filter(Number.isFinite)
+
+      return NextResponse.json({
+        events,
+        hasMore,
+        nextCursor: ids.length ? String(Math.min(...ids)) : String(before),
+        season,
+        week,
+        feedMode,
+      })
     }
 
     if (after > 0) {

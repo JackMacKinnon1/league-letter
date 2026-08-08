@@ -1,7 +1,6 @@
 'use client'
 
 import GameFeedPlayerImage from '@/components/GameFeedPlayerImage'
-import PaginationControls from '@/components/PaginationControls'
 import Link from '@/components/NoPrefetchLink'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -26,7 +25,8 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-const PAGE_SIZE = 25
+const BATCH_SIZE = 25
+const MAX_PLAYS_PER_FEED_PAGE = 250
 const eventFilters = [
   ['all', 'All plays'],
   ['reception', 'Receptions'],
@@ -61,7 +61,8 @@ export default function GameFeedClient({
 }) {
   const [events, setEvents] = useState<GameFeedEvent[]>(initialEvents)
   const [total, setTotal] = useState(initialTotal)
-  const [page, setPage] = useState(1)
+  const [feedPage, setFeedPage] = useState(1)
+  const [hasMoreInDatabase, setHasMoreInDatabase] = useState(initialEvents.length < initialTotal)
   const [eventType, setEventType] = useState('all')
   const [confidence, setConfidence] = useState('all')
   const [nflTeam, setNflTeam] = useState('all')
@@ -72,13 +73,18 @@ export default function GameFeedClient({
     initialRosterId ? String(initialRosterId) : ''
   )
   const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [connectionState, setConnectionState] = useState<'connecting' | 'live' | 'fallback'>('connecting')
   const [newPlayCount, setNewPlayCount] = useState(0)
   const [error, setError] = useState('')
 
   const feedTopRef = useRef<HTMLDivElement | null>(null)
+  const feedScrollRef = useRef<HTMLDivElement | null>(null)
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null)
   const requestSequenceRef = useRef(0)
+  const loadingMoreRef = useRef(false)
   const filterEffectReadyRef = useRef(false)
+  const pageStartCursorsRef = useRef<Record<number, number | null>>({ 1: null })
   const latestCursorRef = useRef(
     initialEvents.reduce((max, event) => Math.max(max, Number(event.id)), 0)
   )
@@ -110,6 +116,14 @@ export default function GameFeedClient({
   }, [matchupRows, selectedTeam, teams])
   const myPlayerIds = useMemo(() => new Set(selectedTeam?.players || []), [selectedTeam])
   const opponentPlayerIds = useMemo(() => new Set(opponentTeam?.players || []), [opponentTeam])
+  const pageOffset = (feedPage - 1) * MAX_PLAYS_PER_FEED_PAGE
+  const totalFeedPages = Math.max(1, Math.ceil(total / MAX_PLAYS_PER_FEED_PAGE))
+  const reachedPageLimit = events.length >= MAX_PLAYS_PER_FEED_PAGE
+  const hasNextFeedPage = pageOffset + events.length < total
+  const canLoadMoreWithinPage =
+    !reachedPageLimit &&
+    hasMoreInDatabase &&
+    pageOffset + events.length < total
 
   useEffect(() => {
     try {
@@ -142,28 +156,47 @@ export default function GameFeedClient({
     else window.localStorage.removeItem(rosterStorageKey)
   }, [rosterStorageKey, selectedRosterId])
 
-  const fetchPage = useCallback(async (nextPage: number) => {
+  const createFilterParams = useCallback(() => {
+    const params = new URLSearchParams({
+      season,
+      week: String(week),
+      eventType,
+      confidence,
+      nflTeam,
+    })
+    if (favoritesOnly) params.set('favoritePlayerIds', favoritePlayerIds.join(','))
+    return params
+  }, [confidence, eventType, favoritePlayerIds, favoritesOnly, nflTeam, season, week])
+
+  const loadFeedPage = useCallback(async (
+    targetFeedPage: number,
+    explicitStartCursor?: number | null
+  ) => {
     if (favoritesOnly && favoritePlayerIds.length === 0) {
       setEvents([])
       setTotal(0)
-      setPage(1)
+      setFeedPage(1)
+      setHasMoreInDatabase(false)
+      feedScrollRef.current?.scrollTo({ top: 0 })
       return
     }
 
     const requestId = ++requestSequenceRef.current
     setLoading(true)
     setError('')
+
     try {
-      const params = new URLSearchParams({
-        season,
-        week: String(week),
-        page: String(nextPage),
-        pageSize: String(PAGE_SIZE),
-        eventType,
-        confidence,
-        nflTeam,
-      })
-      if (favoritesOnly) params.set('favoritePlayerIds', favoritePlayerIds.join(','))
+      const params = createFilterParams()
+      const startCursor = explicitStartCursor ?? pageStartCursorsRef.current[targetFeedPage] ?? null
+
+      if (targetFeedPage === 1) {
+        params.set('page', '1')
+        params.set('pageSize', String(BATCH_SIZE))
+      } else {
+        if (!startCursor) throw new Error('The starting point for this feed page is unavailable.')
+        params.set('before', String(startCursor))
+        params.set('limit', String(BATCH_SIZE))
+      }
 
       const response = await fetch(`/api/league/${leagueId}/game-feed?${params.toString()}`, {
         cache: 'no-store',
@@ -174,14 +207,21 @@ export default function GameFeedClient({
 
       const nextEvents = (json.events || []) as GameFeedEvent[]
       for (const event of nextEvents) knownEventIdsRef.current.add(Number(event.id))
+
       setEvents(nextEvents)
-      setTotal(Number(json.total || 0))
-      setPage(nextPage)
+      if (targetFeedPage === 1) setTotal(Number(json.total || 0))
+      setFeedPage(targetFeedPage)
+      setHasMoreInDatabase(
+        typeof json.hasMore === 'boolean'
+          ? json.hasMore
+          : nextEvents.length === BATCH_SIZE
+      )
       latestCursorRef.current = Math.max(
         latestCursorRef.current,
         ...nextEvents.map((event) => Number(event.id)),
         0
       )
+      feedScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (loadError: any) {
       if (requestId === requestSequenceRef.current) {
         setError(loadError?.message || 'Could not load the Game Feed.')
@@ -189,7 +229,44 @@ export default function GameFeedClient({
     } finally {
       if (requestId === requestSequenceRef.current) setLoading(false)
     }
-  }, [confidence, eventType, favoritePlayerIds, favoritesOnly, leagueId, nflTeam, season, week])
+  }, [createFilterParams, favoritePlayerIds.length, favoritesOnly, leagueId])
+
+  const loadMore = useCallback(async () => {
+    if (loading || loadingMoreRef.current || !canLoadMoreWithinPage || !events.length) return
+
+    const oldestId = Math.min(...events.map((event) => Number(event.id)).filter(Number.isFinite))
+    if (!Number.isFinite(oldestId) || oldestId <= 0) {
+      setHasMoreInDatabase(false)
+      return
+    }
+
+    loadingMoreRef.current = true
+    setLoadingMore(true)
+    setError('')
+
+    try {
+      const params = createFilterParams()
+      params.set('before', String(oldestId))
+      params.set('limit', String(BATCH_SIZE))
+
+      const response = await fetch(`/api/league/${leagueId}/game-feed?${params.toString()}`, {
+        cache: 'no-store',
+      })
+      const json = await response.json()
+      if (!response.ok) throw new Error(json.error || 'Could not load more plays.')
+
+      const incoming = (json.events || []) as GameFeedEvent[]
+      for (const event of incoming) knownEventIdsRef.current.add(Number(event.id))
+
+      setEvents((current) => dedupeEvents([...current, ...incoming]).slice(0, MAX_PLAYS_PER_FEED_PAGE))
+      setHasMoreInDatabase(Boolean(json.hasMore))
+    } catch (loadError: any) {
+      setError(loadError?.message || 'Could not load more plays.')
+    } finally {
+      loadingMoreRef.current = false
+      setLoadingMore(false)
+    }
+  }, [canLoadMoreWithinPage, createFilterParams, events, leagueId, loading])
 
   useEffect(() => {
     if (!favoritesHydrated) return
@@ -197,8 +274,30 @@ export default function GameFeedClient({
       filterEffectReadyRef.current = true
       return
     }
-    void fetchPage(1)
-  }, [confidence, eventType, favoritePlayerIds, favoritesHydrated, favoritesOnly, fetchPage, nflTeam])
+
+    pageStartCursorsRef.current = { 1: null }
+    void loadFeedPage(1)
+  }, [confidence, eventType, favoritePlayerIds, favoritesHydrated, favoritesOnly, loadFeedPage, nflTeam])
+
+  useEffect(() => {
+    const root = feedScrollRef.current
+    const target = loadMoreSentinelRef.current
+    if (!root || !target || !canLoadMoreWithinPage) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) void loadMore()
+      },
+      {
+        root,
+        rootMargin: '0px 0px 320px 0px',
+        threshold: 0.01,
+      }
+    )
+
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [canLoadMoreWithinPage, loadMore])
 
   const fetchAfter = useCallback(async (after: number) => {
     const params = new URLSearchParams({
@@ -239,20 +338,23 @@ export default function GameFeedClient({
       ...unseen.map((event) => Number(event.id))
     )
 
-    if (page === 1) {
-      const visible = unseen.filter((event) => eventMatchesFilters(event, {
-        eventType,
-        confidence,
-        nflTeam,
-        favoritesOnly,
-        favoriteSet,
-      }))
-      if (visible.length) {
-        setEvents((current) => [...visible, ...current].slice(0, PAGE_SIZE))
-        setTotal((current) => current + visible.length)
+    const visible = unseen.filter((event) => eventMatchesFilters(event, {
+      eventType,
+      confidence,
+      nflTeam,
+      favoritesOnly,
+      favoriteSet,
+    }))
+
+    if (visible.length) {
+      setTotal((current) => current + visible.length)
+      if (feedPage === 1) {
+        setEvents((current) =>
+          dedupeEvents([...visible, ...current]).slice(0, MAX_PLAYS_PER_FEED_PAGE)
+        )
       }
     }
-  }, [confidence, eventType, favoriteSet, favoritesOnly, feedMode, nflTeam, page, season, week])
+  }, [confidence, eventType, favoriteSet, favoritesOnly, feedMode, feedPage, nflTeam, season, week])
 
   useEffect(() => {
     let cancelled = false
@@ -304,8 +406,25 @@ export default function GameFeedClient({
     newEventIdsRef.current.clear()
     setNewPlayCount(0)
     window.localStorage.setItem(lastSeenStorageKey, String(latestCursorRef.current))
-    void fetchPage(1)
-    feedTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    pageStartCursorsRef.current = { 1: null }
+    void loadFeedPage(1)
+    feedScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function goToNextFeedPage() {
+    if (!hasNextFeedPage || !events.length) return
+    const oldestId = Math.min(...events.map((event) => Number(event.id)).filter(Number.isFinite))
+    if (!Number.isFinite(oldestId) || oldestId <= 0) return
+
+    const nextPage = feedPage + 1
+    pageStartCursorsRef.current[nextPage] = oldestId
+    void loadFeedPage(nextPage, oldestId)
+  }
+
+  function goToPreviousFeedPage() {
+    if (feedPage <= 1) return
+    const previousPage = feedPage - 1
+    void loadFeedPage(previousPage, pageStartCursorsRef.current[previousPage] ?? null)
   }
 
   function toggleFavorite(playerId?: string | null) {
@@ -353,7 +472,9 @@ export default function GameFeedClient({
                         ? 'Catch-up polling active'
                         : 'Connecting to live feed'}
                 </p>
-                <p className="text-xs text-zinc-500 sm:text-sm">Database-paginated results · {total} matching plays</p>
+                <p className="text-xs text-zinc-500 sm:text-sm">
+                  Infinite-scroll batches · {total} matching plays
+                </p>
               </div>
             </div>
 
@@ -415,46 +536,141 @@ export default function GameFeedClient({
 
       {error && <div className="rounded-2xl border border-red-900 bg-red-950/30 px-4 py-3 text-sm text-red-300">{error}</div>}
 
-      <div className={`min-w-0 space-y-2.5 transition-opacity sm:space-y-3 ${loading ? 'opacity-50' : 'opacity-100'}`}>
-        {events.map((event) => (
-          <GameFeedCard
-            key={event.id}
-            event={event}
-            leagueId={leagueId}
-            favoriteSet={favoriteSet}
-            onToggleFavorite={toggleFavorite}
-            myPlayerIds={myPlayerIds}
-            opponentPlayerIds={opponentPlayerIds}
-            myTeamName={selectedTeam?.team_name || null}
-            opponentTeamName={opponentTeam?.team_name || null}
-          />
-        ))}
-
-        {!events.length && !loading && (
-          <div className="rounded-[2rem] border border-dashed border-zinc-700 bg-zinc-900/50 px-6 py-16 text-center">
-            <Activity className="mx-auto text-zinc-600" size={34} />
-            <h2 className="mt-4 text-2xl font-black">No matching scoring events</h2>
-            <p className="mx-auto mt-2 max-w-xl text-zinc-500">
-              {favoritesOnly && favoritePlayerIds.length === 0
-                ? 'Star a player first, then use the Favourites filter.'
-                : 'Try a different team or play filter, or wait for the next scoring update.'}
+      <div className="min-w-0 overflow-hidden rounded-[1.5rem] border border-zinc-800 bg-black/35 sm:rounded-[2rem]">
+        <div className="flex min-w-0 items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-900/95 px-3 py-2.5 sm:px-5 sm:py-3.5">
+          <div className="min-w-0">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-500">
+              Play page {feedPage} of {totalFeedPages}
+            </p>
+            <p className="mt-0.5 truncate text-xs text-zinc-400 sm:text-sm">
+              {events.length} displayed · scroll for older plays · maximum 250 per page
             </p>
           </div>
-        )}
-      </div>
 
-      <PaginationControls
-        page={page}
-        pageSize={PAGE_SIZE}
-        total={total}
-        disabled={loading}
-        onPageChange={(nextPage) => {
-          void fetchPage(nextPage)
-          feedTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        }}
-      />
+          {feedPage > 1 && (
+            <button
+              type="button"
+              onClick={goToPreviousFeedPage}
+              disabled={loading}
+              className="shrink-0 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-black text-zinc-200 transition hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              ← Previous page
+            </button>
+          )}
+        </div>
+
+        <div
+          ref={feedScrollRef}
+          className="h-[68dvh] min-h-[28rem] max-h-[780px] overflow-y-auto overscroll-contain scroll-smooth p-2.5 [scrollbar-gutter:stable] sm:p-4"
+        >
+          <div className={`min-w-0 space-y-2.5 transition-opacity sm:space-y-3 ${loading ? 'opacity-45' : 'opacity-100'}`}>
+            {events.map((event) => (
+              <GameFeedCard
+                key={event.id}
+                event={event}
+                leagueId={leagueId}
+                favoriteSet={favoriteSet}
+                onToggleFavorite={toggleFavorite}
+                myPlayerIds={myPlayerIds}
+                opponentPlayerIds={opponentPlayerIds}
+                myTeamName={selectedTeam?.team_name || null}
+                opponentTeamName={opponentTeam?.team_name || null}
+              />
+            ))}
+
+            {!events.length && !loading && (
+              <div className="rounded-[1.5rem] border border-dashed border-zinc-700 bg-zinc-900/50 px-5 py-14 text-center sm:rounded-[2rem] sm:px-6 sm:py-16">
+                <Activity className="mx-auto text-zinc-600" size={34} />
+                <h2 className="mt-4 text-xl font-black sm:text-2xl">No matching scoring events</h2>
+                <p className="mx-auto mt-2 max-w-xl text-sm text-zinc-500 sm:text-base">
+                  {favoritesOnly && favoritePlayerIds.length === 0
+                    ? 'Star a player first, then use the Favourites filter.'
+                    : 'Try a different team or play filter, or wait for the next scoring update.'}
+                </p>
+              </div>
+            )}
+
+            {loading && !events.length && (
+              <div className="flex min-h-64 items-center justify-center text-zinc-500">
+                <RefreshCw className="animate-spin" size={24} />
+              </div>
+            )}
+
+            {canLoadMoreWithinPage && <div ref={loadMoreSentinelRef} className="h-2" aria-hidden="true" />}
+
+            {loadingMore && (
+              <div className="flex items-center justify-center gap-2 py-5 text-sm font-bold text-zinc-500">
+                <RefreshCw className="animate-spin" size={17} />
+                Loading older plays…
+              </div>
+            )}
+
+            {reachedPageLimit && hasNextFeedPage && !loadingMore && (
+              <div className="rounded-[1.5rem] border border-emerald-400/25 bg-emerald-400/10 px-5 py-6 text-center sm:rounded-[2rem] sm:px-7 sm:py-8">
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">
+                  250 plays displayed
+                </p>
+                <h2 className="mt-2 text-xl font-black sm:text-2xl">Ready for the next page?</h2>
+                <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-zinc-300">
+                  To keep the live feed smooth, the next 250 older plays are loaded on a separate page.
+                </p>
+                <button
+                  type="button"
+                  onClick={goToNextFeedPage}
+                  className="mt-4 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-black text-emerald-950 transition hover:bg-emerald-300"
+                >
+                  Go to play page {feedPage + 1} →
+                </button>
+              </div>
+            )}
+
+            {!canLoadMoreWithinPage && !hasNextFeedPage && events.length > 0 && !loadingMore && (
+              <div className="py-5 text-center text-xs font-bold uppercase tracking-[0.18em] text-zinc-600">
+                You have reached the end of this feed
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
+}
+
+function dedupeEvents(events: GameFeedEvent[]) {
+  const seen = new Set<number>()
+  return events.filter((event) => {
+    const id = Number(event.id)
+    if (!Number.isFinite(id) || seen.has(id)) return false
+    seen.add(id)
+    return true
+  })
+}
+
+function formatStableTimestamp(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const month = months[date.getUTCMonth()]
+  const day = date.getUTCDate()
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0')
+  const hour24 = date.getUTCHours()
+  const suffix = hour24 >= 12 ? 'PM' : 'AM'
+  const hour12 = hour24 % 12 || 12
+
+  return `${month} ${day}, ${hour12}:${minutes} ${suffix} UTC`
+}
+
+function formatLocalTimestamp(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 function GameFeedCard({
@@ -489,12 +705,11 @@ function GameFeedCard({
     : event.confidence === 'medium'
       ? 'text-amber-300 bg-amber-400/10 border-amber-400/20'
       : 'text-zinc-400 bg-zinc-800 border-zinc-700'
-  const timestamp = new Date(event.detected_at).toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
+  const [timestamp, setTimestamp] = useState(() => formatStableTimestamp(event.detected_at))
+
+  useEffect(() => {
+    setTimestamp(formatLocalTimestamp(event.detected_at))
+  }, [event.detected_at])
 
   return (
     <article className={`min-w-0 overflow-hidden rounded-[1.35rem] border transition sm:rounded-[2rem] ${cardTone}`}>
