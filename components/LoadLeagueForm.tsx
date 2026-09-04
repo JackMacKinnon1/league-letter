@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Download, LoaderCircle } from 'lucide-react'
 
 export default function LoadLeagueForm() {
   const [sleeperLeagueId, setSleeperLeagueId] = useState('')
@@ -14,9 +15,7 @@ export default function LoadLeagueForm() {
     try {
       const res = await fetch('/api/league/load', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sleeperLeagueId }),
       })
 
@@ -36,44 +35,35 @@ export default function LoadLeagueForm() {
   }
 
   return (
-    <div className="mt-6 rounded-[2rem] border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-      <p className="text-sm font-black uppercase tracking-[0.3em] text-emerald-400">
-        Sleeper Import
+    <div className="ll-card ll-form-card">
+      <div className="ll-form-card-head">
+        <span className="ll-feature-icon"><Download size={20} /></span>
+        <div>
+          <p className="ll-eyebrow">Sleeper import</p>
+          <h1>Load a Sleeper league</h1>
+        </div>
+      </div>
+
+      <p className="ll-form-intro">
+        Paste your Sleeper League ID. If League Letter has never seen this room before,
+        your account becomes the league admin automatically.
       </p>
 
-      <h1 className="mt-3 text-4xl font-black">Load a Sleeper league</h1>
-
-      <p className="mt-3 leading-7 text-zinc-400">
-        Paste your Sleeper League ID. If this league has not been loaded on
-        League Letter before, you’ll become the league admin.
-      </p>
-
-      <div className="mt-6">
-        <label className="text-sm font-bold text-zinc-300">
-          Sleeper League ID
-        </label>
-
+      <label className="ll-field">
+        <span>Sleeper League ID</span>
         <input
-          className="mt-2 w-full rounded-2xl border border-zinc-800 bg-zinc-950 px-4 py-3 outline-none focus:border-emerald-500"
+          className="ll-input"
           placeholder="Example: 1124830261361217536"
           value={sleeperLeagueId}
           onChange={(e) => setSleeperLeagueId(e.target.value)}
         />
-      </div>
+      </label>
 
-      <button
-        onClick={loadLeague}
-        disabled={loading || !sleeperLeagueId}
-        className="mt-5 w-full rounded-2xl bg-emerald-500 py-3 font-black text-zinc-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {loading ? 'Loading and syncing...' : 'Load League'}
+      <button onClick={loadLeague} disabled={loading || !sleeperLeagueId} className="ll-btn ll-btn-primary ll-btn-block">
+        {loading ? <><LoaderCircle className="animate-spin" size={17} /> Loading and syncing…</> : <>Load league</>}
       </button>
 
-      {message && (
-        <div className="mt-4 rounded-2xl border border-red-900 bg-red-950/40 p-3 text-sm text-red-300">
-          {message}
-        </div>
-      )}
+      {message && <div className="ll-notice ll-notice-error">{message}</div>}
     </div>
   )
 }

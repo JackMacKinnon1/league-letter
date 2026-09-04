@@ -5,10 +5,16 @@ import process, { stdin as input, stdout as output } from 'node:process'
 import { createInterface } from 'node:readline/promises'
 import { createClient } from '@supabase/supabase-js'
 import { inferGameFeedEvents } from './game-feed-inference.mjs'
+import {
+  GAME_FEED_SCORING_PROFILE,
+  gameFeedScoringValue,
+  validateGameFeedScoringSettings,
+} from './game-feed-scoring-profile.mjs'
 import { startTestControlServer } from './test-control-server.mjs'
 
-const WORKER_VERSION = '2.1.0-live-test-console'
-const SLEEPER_BASE_URL = 'https://api.sleeper.app/v1'
+const WORKER_VERSION = '3.2.0-manual-points-test-console'
+const LIVE_SLEEPER_BASE_URL = 'https://api.sleeper.app/v1'
+const DEFAULT_TEST_SOURCE_LEAGUE_ID = 'league-letter-test'
 const METADATA_REFRESH_MS = 15 * 60 * 1000
 const LOOP_DELAY_MS = 1_000
 const HEARTBEAT_MS = 10 * 1000
@@ -16,6 +22,26 @@ const QUIET_LOG_MS = 60 * 1000
 const PLAYER_QUERY_CHUNK = 200
 const UPSERT_CHUNK = 500
 const TEST_PLAYER_CACHE_MS = 15 * 60 * 1000
+const NFL_DEFENSES = Object.freeze([
+  ['ARI', 'Arizona Cardinals'], ['ATL', 'Atlanta Falcons'], ['BAL', 'Baltimore Ravens'],
+  ['BUF', 'Buffalo Bills'], ['CAR', 'Carolina Panthers'], ['CHI', 'Chicago Bears'],
+  ['CIN', 'Cincinnati Bengals'], ['CLE', 'Cleveland Browns'], ['DAL', 'Dallas Cowboys'],
+  ['DEN', 'Denver Broncos'], ['DET', 'Detroit Lions'], ['GB', 'Green Bay Packers'],
+  ['HOU', 'Houston Texans'], ['IND', 'Indianapolis Colts'], ['JAX', 'Jacksonville Jaguars'],
+  ['KC', 'Kansas City Chiefs'], ['LV', 'Las Vegas Raiders'], ['LAC', 'Los Angeles Chargers'],
+  ['LAR', 'Los Angeles Rams'], ['MIA', 'Miami Dolphins'], ['MIN', 'Minnesota Vikings'],
+  ['NE', 'New England Patriots'], ['NO', 'New Orleans Saints'], ['NYG', 'New York Giants'],
+  ['NYJ', 'New York Jets'], ['PHI', 'Philadelphia Eagles'], ['PIT', 'Pittsburgh Steelers'],
+  ['SEA', 'Seattle Seahawks'], ['SF', 'San Francisco 49ers'], ['TB', 'Tampa Bay Buccaneers'],
+  ['TEN', 'Tennessee Titans'], ['WAS', 'Washington Commanders'],
+].map(([id, teamName]) => ({
+  id,
+  name: `${teamName} D/ST`,
+  full_name: `${teamName} D/ST`,
+  position: 'DEF',
+  team: id,
+  active: true,
+})))
 
 loadEnvironmentFiles()
 
@@ -44,7 +70,7 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 let stopping = false
 let knownTargetLeagueIds = []
 let lastHeartbeatAt = 0
-let demoPending = options.mode === 'test' && options.demo
+let demoPending = options.mode === 'test' && options.sourceEndpoint === 'live' && options.demo
 let testControlServer = null
 let testPlayerCache = { loadedAt: 0, players: [] }
 const lastQuietLogByKey = new Map()
@@ -65,16 +91,29 @@ await main()
 async function main() {
   printBanner()
 
-  if (options.mode === 'test' && !options.once) {
+  if (options.sourceEndpoint === 'test') {
+    if (options.once) {
+      throw new Error('The mock Sleeper endpoint requires a continuous worker. Remove --once.')
+    }
+    if (options.mode !== 'test') {
+      throw new Error('The mock Sleeper endpoint can only be used with --mode test.')
+    }
+
+    await resetMockTestPersistence({ clearEvents: true })
     testControlServer = await startTestControlServer({
       port: options.testPort,
+      leagueId: options.sourceSleeperLeagueId,
+      season: options.testSeason,
+      week: options.testWeek,
       searchPlayers: searchTestPlayers,
-      createPlay: insertCustomTestPlay,
-      getStatus: getTestControlStatus,
+      resolvePlayer: getTestPlayerById,
+      getWorkerStatus: getTestControlStatus,
+      resetWorkerState: resetMockTestPersistence,
       openBrowser: options.openTestControl,
     })
-    console.log(`[${time()}] Live Test Play Console: ${testControlServer.url}`)
-    console.log('Keep this worker open, then add custom plays from that local page.\n')
+    console.log(`[${time()}] Mock Sleeper control console: ${testControlServer.url}`)
+    console.log(`[${time()}] Mock Sleeper API base: ${testControlServer.apiBaseUrl}`)
+    console.log('Set cumulative player fantasy points in the browser. The normal worker will infer plays from matchup score deltas.\n')
   }
 
   do {
@@ -259,6 +298,20 @@ async function pollSourceLeague(targetLeagues, force = false) {
       if (error) throw new Error(error.message)
     }
 
+    const scoringMismatches = validateGameFeedScoringSettings(scoringSettings)
+    if (scoringMismatches.length) {
+      const preview = scoringMismatches
+        .slice(0, 8)
+        .map(({ key, expected, actual }) => `${key}=${actual ?? 'missing'} (expected ${expected})`)
+        .join(', ')
+      logOccasionally(
+        `${options.mode}:scoring-profile-mismatch`,
+        `WARNING: source league does not match the Game Feed encoding profile: ${preview}${
+          scoringMismatches.length > 8 ? `, +${scoringMismatches.length - 8} more` : ''
+        }`
+      )
+    }
+
     if (!force && leagueStatus.toLowerCase() !== 'in_season') {
       await finishSourcePoll(true, null)
       await updateTargetPollStatus(targetLeagues, true, null)
@@ -425,6 +478,9 @@ async function pollSourceLeague(targetLeagues, force = false) {
             collector: 'local-pc-single-source',
             worker_name: workerName,
             feed_mode: options.mode,
+            source_endpoint: options.sourceEndpoint,
+            synthetic: options.sourceEndpoint === 'test',
+            mock_sleeper_endpoint: options.sourceEndpoint === 'test',
             source_sleeper_league_id: options.sourceSleeperLeagueId,
             primary_roster_id: event.primary.rosterId,
             primary_is_starter: event.primary.isStarter,
@@ -600,25 +656,82 @@ async function getTestControlStatus() {
     supabase
       .from('game_feed_source_state')
       .select('season,week,scoring_settings,last_polled_at,last_success_at')
-      .eq('feed_mode', 'test')
+      .eq('feed_mode', options.mode)
       .maybeSingle(),
   ])
 
   return {
-    mode: 'test',
+    mode: options.mode,
+    sourceEndpoint: options.sourceEndpoint,
     enabledLeagueCount: targetLeagues.filter((league) => league.game_feed_enabled).length,
-    season: stateResult.data?.season || null,
-    week: stateResult.data?.week || null,
+    season: stateResult.data?.season || options.testSeason || null,
+    week: stateResult.data?.week || options.testWeek || null,
     lastPolledAt: stateResult.data?.last_polled_at || null,
     lastSuccessAt: stateResult.data?.last_success_at || null,
   }
+}
+
+async function resetMockTestPersistence({ clearEvents = false } = {}) {
+  if (options.mode !== 'test') {
+    throw new Error('Mock test persistence can only be reset while the worker is in Test mode.')
+  }
+
+  const sourceId = options.sourceSleeperLeagueId
+  const { error: snapshotError } = await supabase
+    .from('game_feed_source_snapshots')
+    .delete()
+    .eq('feed_mode', 'test')
+    .eq('source_sleeper_league_id', sourceId)
+  if (snapshotError) throw new Error(`Could not reset Test source snapshots: ${snapshotError.message}`)
+
+  if (clearEvents) {
+    const { error: eventError } = await supabase
+      .from('game_feed_events')
+      .delete()
+      .eq('feed_mode', 'test')
+      .eq('source_sleeper_league_id', sourceId)
+    if (eventError) throw new Error(`Could not clear Test feed events: ${eventError.message}`)
+
+    const { error: batchError } = await supabase
+      .from('game_feed_poll_batches')
+      .delete()
+      .eq('feed_mode', 'test')
+      .eq('source_sleeper_league_id', sourceId)
+    if (batchError) throw new Error(`Could not clear Test poll batches: ${batchError.message}`)
+  }
+
+  const { error: stateError } = await supabase
+    .from('game_feed_source_state')
+    .upsert({
+      feed_mode: 'test',
+      source_sleeper_league_id: sourceId,
+      poll_seconds: options.pollSeconds,
+      season: options.testSeason,
+      week: options.testWeek,
+      league_status: 'in_season',
+      scoring_settings: {},
+      metadata_source_sleeper_league_id: null,
+      metadata_synced_at: null,
+      last_polled_at: null,
+      last_success_at: null,
+      last_error: null,
+      poll_lock_until: null,
+      worker_heartbeat_at: new Date().toISOString(),
+      worker_started_at: startedAt,
+      worker_stopped_at: null,
+      worker_name: workerName,
+      worker_version: WORKER_VERSION,
+    }, { onConflict: 'feed_mode' })
+  if (stateError) throw new Error(`Could not reset Test worker state: ${stateError.message}`)
+
+  return { clearedEvents: Boolean(clearEvents) }
 }
 
 async function searchTestPlayers(query) {
   const normalizedQuery = String(query || '').trim().toLowerCase()
   if (!normalizedQuery) return []
 
-  const players = await loadTestPlayerCache()
+  const players = [...(await loadTestPlayerCache()), ...NFL_DEFENSES]
   return players
     .map((player) => {
       const name = playerDisplayName(player)
@@ -642,7 +755,10 @@ async function searchTestPlayers(query) {
       name,
       position: player.position || null,
       team: player.team || null,
-      imageUrl: `https://sleepercdn.com/content/nfl/players/${player.id}.jpg`,
+      imageUrl:
+        String(player.position || '').toUpperCase() === 'DEF'
+          ? `https://sleepercdn.com/images/v2/icons/team/${player.id}.png`
+          : `https://sleepercdn.com/content/nfl/players/${player.id}.jpg`,
     }))
 }
 
@@ -825,6 +941,16 @@ async function getTestPlayerById(playerIdValue) {
     throw new Error('Choose a valid player from the search results.')
   }
 
+  const defense = NFL_DEFENSES.find((entry) => String(entry.id) === playerId)
+  if (defense) {
+    return {
+      id: defense.id,
+      name: defense.name,
+      position: 'DEF',
+      team: defense.team,
+    }
+  }
+
   const players = await loadTestPlayerCache()
   const player = players.find((entry) => String(entry.id) === playerId)
   if (!player) throw new Error(`Player ${playerId} was not found in the players table.`)
@@ -858,20 +984,20 @@ function buildCustomTestTemplate({ payload, playType, primary, secondary, scorin
     receptions = 1
     description ||= `${yards}-yard ${touchdown ? 'touchdown ' : ''}reception`
     primaryDelta ??=
-      scoreSetting(scoringSettings, 'rec', 1) +
-      yards * scoreSetting(scoringSettings, 'rec_yd', 0.1) +
-      touchdowns * scoreSetting(scoringSettings, 'rec_td', 6)
+      scoreSetting(scoringSettings, 'rec') +
+      yards * scoreSetting(scoringSettings, 'rec_yd') +
+      touchdowns * scoreSetting(scoringSettings, 'rec_td')
     secondaryDelta ??=
-      scoreSetting(scoringSettings, 'pass_cmp', 0) +
-      yards * scoreSetting(scoringSettings, 'pass_yd', 0.04) +
-      touchdowns * scoreSetting(scoringSettings, 'pass_td', 4)
+      scoreSetting(scoringSettings, 'pass_cmp') +
+      yards * scoreSetting(scoringSettings, 'pass_yd') +
+      touchdowns * scoreSetting(scoringSettings, 'pass_td')
   } else if (playType === 'rush') {
     eventType = 'rush'
     description ||= `${yards}-yard ${touchdown ? 'touchdown ' : ''}rush`
     primaryDelta ??=
-      scoreSetting(scoringSettings, 'rush_att', 0) +
-      yards * scoreSetting(scoringSettings, 'rush_yd', 0.1) +
-      touchdowns * scoreSetting(scoringSettings, 'rush_td', 6)
+      scoreSetting(scoringSettings, 'rush_att') +
+      yards * scoreSetting(scoringSettings, 'rush_yd') +
+      touchdowns * scoreSetting(scoringSettings, 'rush_td')
     secondaryDelta = null
   } else if (playType === 'field_goal') {
     eventType = 'field_goal'
@@ -884,7 +1010,7 @@ function buildCustomTestTemplate({ payload, playType, primary, secondary, scorin
     touchdowns = 0
     inferredYards = null
     description ||= 'Extra point made'
-    primaryDelta ??= scoreSetting(scoringSettings, 'xpm', 1)
+    primaryDelta ??= scoreSetting(scoringSettings, 'xpm')
     secondaryDelta = null
   } else if (playType === 'turnover') {
     eventType = 'turnover'
@@ -893,8 +1019,8 @@ function buildCustomTestTemplate({ payload, playType, primary, secondary, scorin
     description ||= primary.position === 'QB' ? 'Interception thrown' : 'Fumble lost'
     primaryDelta ??=
       primary.position === 'QB'
-        ? scoreSetting(scoringSettings, 'pass_int', -2)
-        : scoreSetting(scoringSettings, 'fum_lost', -2)
+        ? scoreSetting(scoringSettings, 'pass_int')
+        : scoreSetting(scoringSettings, 'fum') + scoreSetting(scoringSettings, 'fum_lost')
     secondaryDelta = null
   } else {
     eventType = 'scoring_update'
@@ -938,17 +1064,16 @@ function optionalNumber(value) {
   return Number.isFinite(number) ? number : null
 }
 
-function scoreSetting(settings, key, fallback = 0) {
-  const number = Number(settings?.[key])
-  return Number.isFinite(number) ? number : fallback
+function scoreSetting(settings, key, fallback = undefined) {
+  return gameFeedScoringValue(settings, key, fallback)
 }
 
 function fieldGoalPoints(settings, yards) {
-  if (yards < 20) return scoreSetting(settings, 'fgm_0_19', 3)
-  if (yards < 30) return scoreSetting(settings, 'fgm_20_29', 3)
-  if (yards < 40) return scoreSetting(settings, 'fgm_30_39', 3)
-  if (yards < 50) return scoreSetting(settings, 'fgm_40_49', 4)
-  return scoreSetting(settings, 'fgm_50p', 5)
+  return (
+    scoreSetting(settings, 'fgm') +
+    yards * scoreSetting(settings, 'fgm_yds') +
+    Math.max(yards - 30, 0) * scoreSetting(settings, 'fgm_yds_over_30')
+  )
 }
 
 async function insertDemoEvents({ targetLeagues, season, week, contextPlayers }) {
@@ -1155,13 +1280,22 @@ async function upsertInChunks(table, rows, optionsValue) {
 }
 
 async function sleeperFetch(path) {
-  const response = await fetch(`${SLEEPER_BASE_URL}${path}`, {
-    headers: { 'User-Agent': 'League-Letter-Local-Game-Feed/2.0' },
+  const baseUrl = options.sourceEndpoint === 'test'
+    ? testControlServer?.apiBaseUrl
+    : LIVE_SLEEPER_BASE_URL
+
+  if (!baseUrl) {
+    throw new Error('Mock Sleeper endpoint is not running.')
+  }
+
+  const response = await fetch(`${baseUrl}${path}`, {
+    headers: { 'User-Agent': `League-Letter-Local-Game-Feed/${WORKER_VERSION}` },
     signal: AbortSignal.timeout(15_000),
   })
 
   if (!response.ok) {
-    throw new Error(`Sleeper request failed (${response.status}) for ${path}`)
+    const sourceLabel = options.sourceEndpoint === 'test' ? 'Mock Sleeper' : 'Sleeper'
+    throw new Error(`${sourceLabel} request failed (${response.status}) for ${path}`)
   }
 
   return response.json()
@@ -1251,10 +1385,13 @@ function parseArguments(args) {
     once: false,
     targetLeagueId: null,
     sourceSleeperLeagueId: null,
+    sourceEndpoint: null,
     mode: null,
     demo: null,
     pollSeconds: null,
     testPort: null,
+    testSeason: null,
+    testWeek: null,
     openTestControl: true,
   }
 
@@ -1292,6 +1429,14 @@ function parseArguments(args) {
       continue
     }
 
+    if (argument === '--source-endpoint') {
+      const endpoint = normalizeSourceEndpoint(args[index + 1])
+      if (!endpoint) throw new Error('--source-endpoint must be live or test.')
+      result.sourceEndpoint = endpoint
+      index += 1
+      continue
+    }
+
     if (argument === '--mode') {
       const mode = String(args[index + 1] || '').toLowerCase()
       if (!['public', 'test'].includes(mode)) {
@@ -1312,6 +1457,24 @@ function parseArguments(args) {
       continue
     }
 
+    if (argument === '--test-season') {
+      const season = String(args[index + 1] || '').trim()
+      if (!/^\d{4}$/.test(season)) throw new Error('--test-season requires a 4-digit year.')
+      result.testSeason = season
+      index += 1
+      continue
+    }
+
+    if (argument === '--test-week') {
+      const week = Number(args[index + 1])
+      if (!Number.isInteger(week) || week < 1 || week > 25) {
+        throw new Error('--test-week requires a week between 1 and 25.')
+      }
+      result.testWeek = week
+      index += 1
+      continue
+    }
+
     if (argument === '--no-open-test-control') {
       result.openTestControl = false
       continue
@@ -1328,7 +1491,7 @@ function parseArguments(args) {
     }
 
     if (argument === '--help' || argument === '-h') {
-      console.log(`\nLeague Letter local Game Feed collector\n\nUsage:\n  npm run game-feed\n  npm run game-feed:public\n  npm run game-feed:test\n  npm run game-feed:test:demo\n  npm run game-feed -- --once --mode public\n  npm run game-feed -- --league LEAGUE_LETTER_UUID\n\nOptions:\n  --source SLEEPER_LEAGUE_ID\n  --mode public|test\n  --demo / --no-demo\n  --test-port 3210\n  --no-open-test-control\n  --poll-seconds 10\n  --once\n  --league LEAGUE_LETTER_UUID\n`)
+      console.log(`\nLeague Letter local Game Feed collector\n\nUsage:\n  npm run game-feed\n  npm run game-feed:public\n  npm run game-feed:test\n  npm run game-feed -- --mode test --source-endpoint test\n  npm run game-feed -- --mode test --source-endpoint live --source SLEEPER_LEAGUE_ID\n\nOptions:\n  --mode public|test\n  --source-endpoint live|test\n  --source SLEEPER_LEAGUE_ID\n  --poll-seconds 10\n  --test-port 3210\n  --test-season 2026\n  --test-week 1\n  --no-open-test-control\n  --demo / --no-demo        (legacy live-source Test demo only)\n  --once                    (live endpoint only)\n  --league LEAGUE_LETTER_UUID\n`)
       process.exit(0)
     }
 
@@ -1340,17 +1503,29 @@ function parseArguments(args) {
 
 async function resolveStartupOptions(parsed) {
   let mode = parsed.mode || normalizeMode(process.env.GAME_FEED_MODE)
-  let sourceSleeperLeagueId =
-    parsed.sourceSleeperLeagueId || process.env.GAME_FEED_SOURCE_SLEEPER_LEAGUE_ID || null
+  let sourceEndpoint =
+    parsed.sourceEndpoint || normalizeSourceEndpoint(process.env.GAME_FEED_SOURCE_ENDPOINT)
+  const liveSourceSleeperLeagueId = process.env.GAME_FEED_SOURCE_SLEEPER_LEAGUE_ID || null
+  const testSourceSleeperLeagueId = process.env.GAME_FEED_TEST_SOURCE_LEAGUE_ID || null
+  let sourceSleeperLeagueId = parsed.sourceSleeperLeagueId || null
   let demo = parsed.demo
-  const pollSeconds = clampPollSeconds(
-    parsed.pollSeconds || process.env.GAME_FEED_POLL_SECONDS || 10
+  let pollSecondsInput = parsed.pollSeconds || process.env.GAME_FEED_POLL_SECONDS || null
+  const testPort = clampTestPort(parsed.testPort || process.env.GAME_FEED_TEST_PORT || 3210)
+  const testSeason = String(
+    parsed.testSeason || process.env.GAME_FEED_TEST_SEASON || new Date().getUTCFullYear()
   )
-  const testPort = clampTestPort(
-    parsed.testPort || process.env.GAME_FEED_TEST_PORT || 3210
-  )
+  const testWeek = clampTestWeek(parsed.testWeek || process.env.GAME_FEED_TEST_WEEK || 1)
 
-  if (process.stdin.isTTY && (!mode || !sourceSleeperLeagueId || (mode === 'test' && demo === null))) {
+  if (!sourceSleeperLeagueId && sourceEndpoint === 'live') {
+    sourceSleeperLeagueId = liveSourceSleeperLeagueId
+  }
+  if (!sourceSleeperLeagueId && sourceEndpoint === 'test') {
+    sourceSleeperLeagueId = testSourceSleeperLeagueId
+  }
+
+  const shouldAskEndpoint = process.stdin.isTTY && !sourceEndpoint && !parsed.mode
+
+  if (process.stdin.isTTY && (!mode || shouldAskEndpoint || (sourceEndpoint === 'live' && !sourceSleeperLeagueId))) {
     const readline = createInterface({ input, output })
 
     try {
@@ -1361,17 +1536,36 @@ async function resolveStartupOptions(parsed) {
         mode = answer.trim().toLowerCase().startsWith('t') ? 'test' : 'public'
       }
 
-      if (!sourceSleeperLeagueId) {
+      if (!sourceEndpoint) {
+        if (parsed.mode) {
+          sourceEndpoint = mode === 'test' ? 'test' : 'live'
+        } else {
+          const defaultLabel = mode === 'test' ? 'T' : 'L'
+          const answer = await readline.question(
+            `Use [L]ive Sleeper API or local [T]est endpoint? (L/T, default ${defaultLabel}): `
+          )
+          const trimmed = answer.trim().toLowerCase()
+          sourceEndpoint = trimmed
+            ? (trimmed.startsWith('t') ? 'test' : 'live')
+            : (mode === 'test' ? 'test' : 'live')
+        }
+      }
+
+      if (sourceEndpoint === 'live' && !sourceSleeperLeagueId) {
+        sourceSleeperLeagueId = liveSourceSleeperLeagueId
+      }
+
+      if (sourceEndpoint === 'live' && !sourceSleeperLeagueId) {
         sourceSleeperLeagueId = (
           await readline.question('Dedicated deep Sleeper league ID: ')
         ).trim()
       }
 
-      if (mode === 'test' && demo === null) {
+      if (mode === 'test' && sourceEndpoint === 'live' && demo === null) {
         const answer = await readline.question(
-          'Create four sample test feed cells now? (Y/n): '
+          'Create four legacy sample test feed cells now? (y/N): '
         )
-        demo = !answer.trim().toLowerCase().startsWith('n')
+        demo = answer.trim().toLowerCase().startsWith('y')
       }
     } finally {
       readline.close()
@@ -1379,16 +1573,34 @@ async function resolveStartupOptions(parsed) {
   }
 
   mode = mode || 'public'
+  sourceEndpoint = sourceEndpoint || (mode === 'test' ? 'test' : 'live')
+
+  if (sourceEndpoint === 'test') {
+    // Keep the mock source isolated from any real deep-league ID stored in .env.local.
+    // --source can still override this deliberately for a one-off mock namespace.
+    sourceSleeperLeagueId =
+      parsed.sourceSleeperLeagueId || testSourceSleeperLeagueId || DEFAULT_TEST_SOURCE_LEAGUE_ID
+    demo = false
+    if (!pollSecondsInput) pollSecondsInput = 5
+  }
+
+  if (sourceEndpoint === 'live') {
+    sourceSleeperLeagueId = sourceSleeperLeagueId || liveSourceSleeperLeagueId || null
+  }
+
   if (demo === null) demo = false
   if (mode !== 'test') demo = false
 
   return {
     ...parsed,
     mode,
+    sourceEndpoint,
     demo,
     sourceSleeperLeagueId,
-    pollSeconds,
+    pollSeconds: clampPollSeconds(pollSecondsInput || 10),
     testPort,
+    testSeason,
+    testWeek,
   }
 }
 
@@ -1397,25 +1609,26 @@ function printBanner() {
   console.log('---------------------------------')
   console.log(`Worker: ${workerName}`)
   console.log(`Feed mode: ${options.mode.toUpperCase()}`)
+  console.log(`Source endpoint: ${options.sourceEndpoint === 'test' ? 'LOCAL MOCK SLEEPER' : 'LIVE SLEEPER'}`)
   console.log(`Source Sleeper league: ${options.sourceSleeperLeagueId}`)
-  console.log(`Sleeper requests: one matchup request every ${options.pollSeconds} seconds`)
+  console.log(`Matchup requests: one every ${options.pollSeconds} seconds`)
+  console.log(
+    `Decoder profile: completion/reception ${GAME_FEED_SCORING_PROFILE.pass_cmp}, pass/rec/rush yard ${GAME_FEED_SCORING_PROFILE.pass_yd}, rush attempt ${GAME_FEED_SCORING_PROFILE.rush_att}`
+  )
   console.log(
     options.targetLeagueId
       ? `League Letter target filter: ${options.targetLeagueId}`
       : 'League Letter targets: every enabled league'
   )
   console.log(options.once ? 'Run mode: one poll, then exit' : 'Run mode: continuous')
-  if (options.mode === 'test') {
-    if (!options.once) {
-      console.log(`Live Test Play Console: http://127.0.0.1:${options.testPort}`)
-    }
-    console.log(
-      options.demo
-        ? 'Test cells: four sample events will be inserted after startup'
-        : 'Test cells: use the local Test Play Console or wait for test-tagged score changes'
-    )
+  if (options.sourceEndpoint === 'test') {
+    console.log(`Mock Sleeper control: http://127.0.0.1:${options.testPort}`)
+    console.log(`Mock Sleeper API: http://127.0.0.1:${options.testPort}/v1`)
+    console.log(`Mock season/week: ${options.testSeason} / ${options.testWeek}`)
+  } else if (options.mode === 'test') {
+    console.log('Test mode is reading the real Sleeper API but tagging inferred rows as Test.')
   }
-  console.log('Stop with Ctrl+C. Your PC only makes outbound connections.\n')
+  console.log('Stop with Ctrl+C.\n')
 }
 
 function requestStop() {
@@ -1425,7 +1638,7 @@ function requestStop() {
 }
 
 function playerFallback(playerId) {
-  const isDefense = playerId.length <= 4
+  const isDefense = /^[A-Z]{2,3}$/.test(String(playerId))
   return {
     id: playerId,
     full_name: isDefense ? `${playerId} Defense` : playerId,
@@ -1437,6 +1650,16 @@ function playerFallback(playerId) {
 function normalizeMode(value) {
   const mode = String(value || '').trim().toLowerCase()
   return ['public', 'test'].includes(mode) ? mode : null
+}
+
+function normalizeSourceEndpoint(value) {
+  const endpoint = String(value || '').trim().toLowerCase()
+  return ['live', 'test'].includes(endpoint) ? endpoint : null
+}
+
+function clampTestWeek(value) {
+  const number = Number(value)
+  return Number.isInteger(number) && number >= 1 && number <= 25 ? number : 1
 }
 
 function clampPollSeconds(value) {

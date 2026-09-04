@@ -1,5 +1,5 @@
 import Link from '@/components/NoPrefetchLink'
-import { Menu, ShieldCheck, UserRound, X } from 'lucide-react'
+import { BarChart3, Menu, PlusCircle, ShieldCheck, UserRound, X } from 'lucide-react'
 import LogoutButton from './LogoutButton'
 
 type NavLink = {
@@ -8,14 +8,23 @@ type NavLink = {
   icon?: string
 }
 
+function NavIcon({ name }: { name?: string }) {
+  if (name === 'profile') return <UserRound size={17} />
+  if (name === 'rankings') return <BarChart3 size={17} />
+  if (name === 'load') return <PlusCircle size={17} />
+  return null
+}
+
 export default function MobileNav({
   links,
   isLoggedIn,
   isSiteAdmin,
+  userLabel,
 }: {
   links: NavLink[]
   isLoggedIn: boolean
   isSiteAdmin: boolean
+  userLabel?: string
 }) {
   return (
     <details className="mobile-menu md:hidden">
@@ -29,47 +38,37 @@ export default function MobileNav({
       </summary>
 
       <div className="mobile-menu-card" role="navigation" aria-label="Mobile navigation">
-        <div className="border-b border-white/10 px-3 py-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">
-            Navigation
-          </p>
+        <div className="ll-mobile-menu-head">
+          <span className="ll-live-chip">2026 live</span>
+          {isLoggedIn && <span className="ll-user-chip"><span className="ll-user-dot" />{userLabel || 'Account'}</span>}
         </div>
 
-        <div className="py-2">
+        <div className="ll-mobile-menu-links">
           {isLoggedIn ? (
             <>
               {links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-zinc-200 transition active:bg-white/[0.08] hover:bg-white/[0.06] hover:text-white"
-                >
-                  {link.icon === 'profile' && <UserRound size={17} />}
+                <Link key={link.href} href={link.href} className="ll-mobile-link">
+                  <NavIcon name={link.icon} />
                   {link.label}
                 </Link>
               ))}
 
               {isSiteAdmin && (
-                <Link
-                  href="/site-admin"
-                  className="mx-1 mt-1 flex items-center gap-3 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-3 text-sm font-black text-emerald-300 transition active:scale-[0.99] hover:bg-emerald-400/15"
-                >
+                <Link href="/site-admin" className="ll-mobile-link ll-mobile-admin">
                   <ShieldCheck size={17} />
-                  Site Admin
+                  Site admin
                 </Link>
               )}
 
-              <div className="mt-2 border-t border-white/10 px-2 pt-2">
+              <div className="ll-mobile-logout">
                 <LogoutButton />
               </div>
             </>
           ) : (
-            <Link
-              href="/login"
-              className="block rounded-xl bg-white px-4 py-3 text-center text-sm font-semibold text-zinc-950 transition active:scale-[0.99] hover:bg-zinc-200"
-            >
-              Login
-            </Link>
+            <>
+              <Link href="/login" className="ll-mobile-link">Sign in</Link>
+              <Link href="/signup" className="ll-mobile-cta">Create account</Link>
+            </>
           )}
         </div>
       </div>

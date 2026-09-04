@@ -1,8 +1,7 @@
 @echo off
 cd /d "%~dp0"
 title League Letter Game Feed - PUBLIC
- echo Starting PUBLIC Game Feed collector...
-echo Keep this window open during games. Press Ctrl+C to stop.
+ echo Starting PUBLIC Game Feed collector against the live Sleeper API...
 echo.
 npm run game-feed:public
 echo.

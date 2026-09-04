@@ -10,9 +10,11 @@
     "test:game-feed": "node scripts/test-game-feed-inference.mjs",
     "game-feed": "node game-feed-worker/index.mjs",
     "game-feed:once": "node game-feed-worker/index.mjs --once",
-    "game-feed:public": "node game-feed-worker/index.mjs --mode public",
-    "game-feed:test": "node game-feed-worker/index.mjs --mode test",
-    "game-feed:test:demo": "node game-feed-worker/index.mjs --mode test --demo --once"
+    "game-feed:public": "node game-feed-worker/index.mjs --mode public --source-endpoint live",
+    "game-feed:test": "node game-feed-worker/index.mjs --mode test --source-endpoint test --poll-seconds 5",
+    "game-feed:test:demo": "node game-feed-worker/index.mjs --mode test --source-endpoint live --demo --once",
+    "game-feed:test:live": "node game-feed-worker/index.mjs --mode test --source-endpoint live",
+    "test:mock-game-feed": "node scripts/test-mock-sleeper-endpoint.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.2",

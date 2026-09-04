@@ -1,16 +1,23 @@
 import Link from '@/components/NoPrefetchLink'
-import { ShieldCheck, Trophy, UserRound } from 'lucide-react'
+import { BarChart3, Newspaper, PlusCircle, ShieldCheck, UserRound } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { isSiteAdminEmail } from '@/lib/permissions'
 import LogoutButton from './LogoutButton'
 import MobileNav from './MobileNav'
 
 const authedLinks = [
-  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+  { href: '/dynasty-rankings', label: 'Rankings', icon: 'rankings' },
+  { href: '/leagues/new', label: 'Load League', icon: 'load' },
   { href: '/profile', label: 'Profile', icon: 'profile' },
-  { href: '/dynasty-rankings', label: 'Dynasty Rankings' },
-  { href: '/leagues/new', label: 'Load League' },
 ]
+
+function NavIcon({ name }: { name?: string }) {
+  if (name === 'profile') return <UserRound size={15} />
+  if (name === 'rankings') return <BarChart3 size={15} />
+  if (name === 'load') return <PlusCircle size={15} />
+  return null
+}
 
 export default async function Navbar() {
   const supabase = await createClient()
@@ -21,59 +28,61 @@ export default async function Navbar() {
 
   const isSiteAdmin = isSiteAdminEmail(user?.email)
 
-  return (
-    <header className="sticky top-0 z-[2147483000] isolate border-b border-white/10 bg-[#08090b]/90 text-white shadow-lg shadow-black/10 backdrop-blur-xl supports-[backdrop-filter]:bg-[#08090b]/75">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] md:py-4">
-        <Link href="/" className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-emerald-300 shadow-inner shadow-white/5 md:h-10 md:w-10">
-            <Trophy size={18} />
-          </div>
+  let userLabel = user?.email?.split('@')[0] || 'Account'
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name,username')
+      .eq('id', user.id)
+      .maybeSingle()
 
-          <div className="min-w-0">
-            <p className="truncate text-base font-semibold leading-none tracking-tight md:text-lg">
-              League Letter
-            </p>
-            <p className="hidden text-xs font-medium text-zinc-500 sm:block">
-              Fantasy football command center
-            </p>
-          </div>
+    userLabel = profile?.display_name || profile?.username || userLabel
+  }
+
+  return (
+    <header className="ll-navbar">
+      <div className="ll-navbar-inner">
+        <Link href="/" className="ll-brand" aria-label="League Letter home">
+          <span className="ll-brand-mark" aria-hidden="true">
+            <Newspaper size={19} />
+          </span>
+          <span className="ll-brand-copy">
+            <span className="ll-brand-word"><b>LEAGUE</b><em>LETTER</em></span>
+            <span className="ll-brand-sub">Fantasy football command center</span>
+          </span>
         </Link>
 
-        <nav className="hidden items-center gap-1 rounded-2xl border border-white/10 bg-white/[0.035] p-1 text-sm font-medium text-zinc-300 md:flex">
+        <nav className="ll-nav-links hidden md:flex">
+          <span className="ll-live-chip">2026 live</span>
+
           {user ? (
             <>
               {authedLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="inline-flex items-center gap-2 rounded-xl px-3 py-2 transition duration-200 hover:-translate-y-0.5 hover:bg-white/[0.07] hover:text-white"
-                >
-                  {link.icon === 'profile' && <UserRound size={15} />}
+                <Link key={link.href} href={link.href} className="ll-nav-link">
+                  <NavIcon name={link.icon} />
                   {link.label}
                 </Link>
               ))}
 
               {isSiteAdmin && (
-                <Link
-                  href="/site-admin"
-                  className="ml-1 inline-flex items-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 font-black text-emerald-300 transition duration-200 hover:-translate-y-0.5 hover:border-emerald-400/45 hover:bg-emerald-400/15"
-                >
+                <Link href="/site-admin" className="ll-nav-link ll-nav-admin">
                   <ShieldCheck size={15} />
-                  Site Admin
+                  Site admin
                 </Link>
               )}
 
-              <div className="ml-1 border-l border-white/10 pl-2">
-                <LogoutButton />
-              </div>
+              <span className="ll-user-chip" title={user.email || userLabel}>
+                <span className="ll-user-dot" />
+                <span>{userLabel}</span>
+              </span>
+
+              <LogoutButton />
             </>
           ) : (
-            <Link
-              href="/login"
-              className="rounded-xl bg-white px-4 py-2 font-semibold text-zinc-950 transition hover:bg-zinc-200"
-            >
-              Login
-            </Link>
+            <>
+              <Link href="/login" className="ll-nav-link">Sign in</Link>
+              <Link href="/signup" className="ll-nav-cta">Create account</Link>
+            </>
           )}
         </nav>
 
@@ -81,6 +90,7 @@ export default async function Navbar() {
           links={authedLinks}
           isLoggedIn={Boolean(user)}
           isSiteAdmin={isSiteAdmin}
+          userLabel={userLabel}
         />
       </div>
     </header>

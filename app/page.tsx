@@ -1,125 +1,151 @@
 import Link from '@/components/NoPrefetchLink'
 import Navbar from '@/components/Navbar'
-import { BarChart3, Newspaper, ShieldCheck, Swords, TrendingUp } from 'lucide-react'
+import { Activity, BarChart3, Newspaper, ShieldCheck, Swords, Trophy, TrendingUp, Users } from 'lucide-react'
+
+const features = [
+  {
+    icon: Newspaper,
+    eyebrow: 'Newsroom',
+    title: 'League stories that feel official',
+    body: 'Publish previews, recaps, columns, breaking news, and weekly league drama in one polished home.'
+  },
+  {
+    icon: Swords,
+    eyebrow: 'Matchups',
+    title: 'Live weeks with real context',
+    body: 'Follow featured matchups, projected scores, win chances, and every roster in your league.'
+  },
+  {
+    icon: TrendingUp,
+    eyebrow: 'Rankings',
+    title: 'Power rankings built for debate',
+    body: 'Turn weekly rankings and dynasty values into a clean sports-media style presentation.'
+  },
+  {
+    icon: Activity,
+    eyebrow: 'Activity',
+    title: 'Transactions and trades together',
+    body: 'Track roster moves, trade trees, breaking moves, and your league history without digging through Sleeper.'
+  },
+]
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-zinc-950 text-white">
+    <main className="ll-page">
       <Navbar />
 
-      <section className="mx-auto grid max-w-7xl gap-10 px-4 py-14 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-20">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
-            Powered by Sleeper
+      <section className="ll-home-hero">
+        <div className="ll-home-hero-glow" />
+        <div className="ll-shell ll-home-hero-grid">
+          <div className="ll-home-copy">
+            <p className="ll-eyebrow">Fantasy football media hub</p>
+            <h1>
+              Your league deserves a <em>front page.</em>
+            </h1>
+            <p className="ll-hero-copy">
+              League Letter turns a Sleeper league into a live command center for matchups,
+              articles, trades, power rankings, drafts, trophies, and weekly league history.
+            </p>
+
+            <div className="ll-hero-actions">
+              <Link href="/signup" className="ll-btn ll-btn-primary">Create account</Link>
+              <Link href="/leagues/new" className="ll-btn ll-btn-secondary">Load Sleeper league</Link>
+            </div>
+
+            <div className="ll-home-proof">
+              <span><Users size={16} /> Public league pages</span>
+              <span><ShieldCheck size={16} /> Admin controls</span>
+              <span><Activity size={16} /> Live data</span>
+            </div>
           </div>
 
-          <h1 className="mt-6 max-w-4xl text-5xl font-semibold tracking-tight md:text-7xl">
-            A real media hub for your fantasy league.
-          </h1>
+          <div className="ll-command-preview" aria-label="League Letter dashboard preview">
+            <div className="ll-preview-topbar">
+              <div>
+                <p className="ll-eyebrow">Week 8 · 2026</p>
+                <h2>League command center</h2>
+              </div>
+              <span className="ll-live-chip">Live</span>
+            </div>
 
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-300">
-            League Letter turns your Sleeper league into a polished newsroom with
-            articles, matchups, transactions, rankings, drafts, and admin tools
-            built for desktop and mobile.
-          </p>
+            <div className="ll-preview-scoreboard">
+              <PreviewMatchup left="Gridiron Gang" right="Sunday Scaries" leftScore="124.8" rightScore="118.3" />
+              <PreviewMatchup left="Fourth & Long" right="Waiver Kings" leftScore="101.4" rightScore="109.7" />
+            </div>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/signup"
-              className="rounded-xl bg-white px-6 py-3 text-center font-semibold text-zinc-950 transition hover:bg-zinc-200"
-            >
-              Create Account
-            </Link>
-
-            <Link
-              href="/leagues/new"
-              className="rounded-xl border border-white/10 bg-white/[0.04] px-6 py-3 text-center font-semibold text-zinc-100 transition hover:bg-white/[0.08]"
-            >
-              Load Sleeper League
-            </Link>
+            <div className="ll-preview-lower">
+              <div className="ll-preview-panel">
+                <div className="ll-preview-panel-title"><Trophy size={16} /> Power rankings</div>
+                <ol className="ll-preview-ranking-list">
+                  <li><span>1</span><b>Gridiron Gang</b><small>9-2</small></li>
+                  <li><span>2</span><b>Waiver Kings</b><small>8-3</small></li>
+                  <li><span>3</span><b>Sunday Scaries</b><small>7-4</small></li>
+                </ol>
+              </div>
+              <div className="ll-preview-panel ll-preview-story">
+                <span className="ll-eyebrow">Breaking</span>
+                <h3>Trade deadline chaos hits the league</h3>
+                <p>Three teams reshape the playoff race in one night.</p>
+              </div>
+            </div>
           </div>
         </div>
+      </section>
 
-        <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.035] shadow-2xl shadow-black/30">
-          <div className="border-b border-white/10 px-5 py-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-zinc-500">
-                  Week 8 Edition
-                </p>
-                <h2 className="mt-2 text-3xl font-semibold tracking-tight">
-                  League Command Center
-                </h2>
-              </div>
-              <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-300">
-                Live
-              </div>
-            </div>
+      <section className="ll-shell ll-feature-section">
+        <div className="ll-section-heading">
+          <div>
+            <p className="ll-eyebrow">Everything in one place</p>
+            <h2>Built like a sports site, not a spreadsheet.</h2>
           </div>
+          <p>
+            The same dark navy, blue, and orange visual language now runs across League Letter—
+            from league pages and admin tools to forms, tables, filters, and live feeds.
+          </p>
+        </div>
 
-          <div className="grid gap-px bg-white/10 sm:grid-cols-2">
-            <PreviewCard
-              icon={<Swords size={19} />}
-              title="Featured Matchup"
-              body="Highlight the matchup of the week with records, projections, and league context."
-            />
-            <PreviewCard
-              icon={<TrendingUp size={19} />}
-              title="Power Rankings"
-              body="Publish weekly rankings that look like a real sports media product."
-            />
-            <PreviewCard
-              icon={<Newspaper size={19} />}
-              title="Articles"
-              body="Owners can write recaps, previews, columns, and league drama."
-            />
-            <PreviewCard
-              icon={<BarChart3 size={19} />}
-              title="Transactions"
-              body="Track trades, waivers, free agents, and roster movement cleanly."
-            />
-          </div>
+        <div className="ll-feature-grid">
+          {features.map(({ icon: Icon, eyebrow, title, body }) => (
+            <article key={title} className="ll-card ll-feature-card">
+              <span className="ll-feature-icon"><Icon size={20} /></span>
+              <p className="ll-eyebrow">{eyebrow}</p>
+              <h3>{title}</h3>
+              <p>{body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
 
-          <div className="border-t border-white/10 p-5">
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-emerald-300">
-                  <ShieldCheck size={18} />
-                </div>
-                <div>
-                  <h3 className="font-semibold">Admin-ready by default</h3>
-                  <p className="mt-1 text-sm leading-6 text-zinc-400">
-                    Load a league, manage writers, sync Sleeper data, and keep the
-                    site feeling fast with polished loading states.
-                  </p>
-                </div>
-              </div>
-            </div>
+      <section className="ll-shell ll-home-footer-cta">
+        <div className="ll-card ll-cta-card">
+          <div>
+            <p className="ll-eyebrow">Powered by Sleeper</p>
+            <h2>Load a league and make it yours.</h2>
+            <p>Your league stays public by URL while admins and writers get the tools they need behind the scenes.</p>
           </div>
+          <Link href="/leagues/new" className="ll-btn ll-btn-primary">Get started</Link>
         </div>
       </section>
     </main>
   )
 }
 
-function PreviewCard({
-  icon,
-  title,
-  body,
+function PreviewMatchup({
+  left,
+  right,
+  leftScore,
+  rightScore,
 }: {
-  icon: React.ReactNode
-  title: string
-  body: string
+  left: string
+  right: string
+  leftScore: string
+  rightScore: string
 }) {
   return (
-    <div className="bg-[#101216] p-5">
-      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-emerald-300">
-        {icon}
-      </div>
-
-      <h3 className="mt-4 font-semibold">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-zinc-400">{body}</p>
+    <div className="ll-preview-matchup">
+      <div><b>{left}</b><strong>{leftScore}</strong></div>
+      <span>LIVE</span>
+      <div><b>{right}</b><strong>{rightScore}</strong></div>
     </div>
   )
 }

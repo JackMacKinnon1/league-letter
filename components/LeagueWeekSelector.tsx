@@ -1,10 +1,11 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 
 export default function LeagueWeekSelector({
-  leagueId,
+  leagueId: _leagueId,
   seasons,
   selectedSeason,
   selectedWeek,
@@ -15,24 +16,33 @@ export default function LeagueWeekSelector({
   selectedWeek: number
 }) {
   const pathname = usePathname()
-
   const [season, setSeason] = useState(selectedSeason)
   const [week, setWeek] = useState(String(selectedWeek))
+  const weekNumber = Number(week)
 
   return (
-    <form
-      action={pathname}
-      method="GET"
-      className="relative z-20 mt-6 rounded-[2rem] border border-white/10 bg-white/10 p-5 backdrop-blur"
-    >
-      <p className="text-sm font-black uppercase tracking-[0.25em] text-emerald-300">
-        View League Week
-      </p>
-
-      <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+    <form action={pathname} method="GET" className="ll-week-selector">
+      <div className="ll-week-selector-label">
+        <CalendarDays size={16} />
         <div>
-          <label className="text-sm font-bold text-zinc-300">Season</label>
+          <span>League view</span>
+          <b>Season & week</b>
+        </div>
+      </div>
 
+      <div className="ll-week-control">
+        <button
+          type="button"
+          className="ll-week-arrow"
+          aria-label="Previous week"
+          disabled={weekNumber <= 1}
+          onClick={() => setWeek(String(Math.max(1, weekNumber - 1)))}
+        >
+          <ChevronLeft size={19} />
+        </button>
+
+        <label className="ll-compact-select">
+          <span className="sr-only">Season</span>
           <select
             name="season"
             value={season}
@@ -40,42 +50,34 @@ export default function LeagueWeekSelector({
               setSeason(e.target.value)
               setWeek('1')
             }}
-            className="mt-2 h-14 w-full rounded-2xl border border-white/10 bg-zinc-950 px-4 py-3 text-base font-bold outline-none focus:border-emerald-500"
           >
             {seasons.map((seasonOption) => (
-              <option key={seasonOption} value={seasonOption}>
-                {seasonOption}
-              </option>
+              <option key={seasonOption} value={seasonOption}>{seasonOption}</option>
             ))}
           </select>
-        </div>
+        </label>
 
-        <div>
-          <label className="text-sm font-bold text-zinc-300">Week</label>
-
-          <select
-            name="week"
-            value={week}
-            onChange={(e) => setWeek(e.target.value)}
-            className="mt-2 h-14 w-full rounded-2xl border border-white/10 bg-zinc-950 px-4 py-3 text-base font-bold outline-none focus:border-emerald-500"
-          >
-            {Array.from({ length: 18 }, (_, index) => index + 1).map(
-              (weekOption) => (
-                <option key={weekOption} value={String(weekOption)}>
-                  Week {weekOption}
-                </option>
-              )
-            )}
+        <label className="ll-compact-select ll-week-select">
+          <span className="sr-only">Week</span>
+          <select name="week" value={week} onChange={(e) => setWeek(e.target.value)}>
+            {Array.from({ length: 18 }, (_, index) => index + 1).map((weekOption) => (
+              <option key={weekOption} value={String(weekOption)}>Week {weekOption}</option>
+            ))}
           </select>
-        </div>
+        </label>
 
         <button
-          type="submit"
-          className="h-14 w-full rounded-2xl bg-emerald-500 px-5 py-3 text-base font-black text-zinc-950 hover:bg-emerald-400 md:w-auto"
+          type="button"
+          className="ll-week-arrow"
+          aria-label="Next week"
+          disabled={weekNumber >= 18}
+          onClick={() => setWeek(String(Math.min(18, weekNumber + 1)))}
         >
-          Apply
+          <ChevronRight size={19} />
         </button>
       </div>
+
+      <button type="submit" className="ll-btn ll-btn-secondary ll-week-apply">Apply</button>
     </form>
   )
 }

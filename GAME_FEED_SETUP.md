@@ -161,7 +161,7 @@ or double-click:
 START_GAME_FEED_PUBLIC.bat
 ```
 
-### Direct test start
+### Direct test start — local mock Sleeper endpoint
 
 ```powershell
 npm run game-feed:test
@@ -173,16 +173,16 @@ or double-click:
 START_GAME_FEED_TEST.bat
 ```
 
-Test mode asks whether it should immediately create four sample cells. These use
-real player records when available and are clearly labelled `TEST · synthetic`.
+This now starts a local mock Sleeper API at `http://127.0.0.1:3210/v1` plus a
+browser control page at `http://127.0.0.1:3210`. Plays entered there change the
+mock matchup `players_points`; the normal worker must detect and infer those
+changes before anything reaches Supabase.
 
-A one-command test is also available:
+To run Test-tagged inference against the real Sleeper API instead:
 
 ```powershell
-npm run game-feed:test:demo
+npm run game-feed:test:live -- --source SLEEPER_LEAGUE_ID
 ```
-
-That performs one source poll, adds sample test cells, and exits.
 
 ## Public and test mode behavior
 
@@ -212,14 +212,17 @@ Future point changes create events.
 
 1. Open **Site Admin → Game Feed Control**, set the desired room to **Test**, and save.
 2. Start `START_GAME_FEED_TEST.bat`.
-3. Answer `Y` when asked to create sample test cells.
-4. Open the league homepage, Game Feed, and player pages.
-5. Confirm test cells appear and are labelled.
-6. Switch the admin setting back to `Public`.
-7. Confirm every test cell disappears from public pages.
+3. In the local browser console, choose players and queue a play.
+4. The mock API first exposes a zero-point baseline for any new participants, then
+   exposes the encoded scoring change on a later worker poll.
+5. Confirm the worker infers the play and the open League Letter page receives the
+   new Test event through the normal Supabase path.
+6. Queue interceptions, fumbles, field goals, blocked kicks, sacks, and other edge
+   cases as needed.
+7. Switch the admin setting back to `Public` when finished.
 
-Test events remain stored for future testing, but public mode always filters them
-out.
+The local **Reset Test session** button clears only mock-source Test events and
+snapshots. Public events and the Public baseline are untouched.
 
 ## Useful worker commands
 
@@ -356,48 +359,37 @@ real event. Test demo cells can still be inserted in Test mode.
 
 No additional SQL migration is required for the live test controls, new-play counter, or quarterback image overlay. Keep the existing Game Feed tables and deploy the updated website/worker files.
 
-## Add custom plays while the Test worker is running
+## Add custom plays through the mock Sleeper endpoint
 
-Continuous Test mode now starts a local-only control page:
+Continuous mock Test mode starts a local-only control page:
 
 ```text
 http://127.0.0.1:3210
 ```
 
-The page normally opens automatically after the worker starts. It is available
-only on the PC running the worker and is not exposed to the internet.
+and a Sleeper-compatible API base:
 
-1. Set the League Letter website display mode to **Test**.
-2. Start `START_GAME_FEED_TEST.bat` or run `npm run game-feed:test`.
-3. Keep the worker terminal open.
-4. In the Test Play Console, search for the receiver, rusher, kicker, or other
-   primary player.
-5. Choose the play type, yards, and touchdown status.
-6. For a reception, choose the quarterback who threw the pass.
-7. Press **Add play to Test feed**.
-
-The worker calculates the fantasy-point changes from the dedicated Sleeper
-league's scoring settings. The point fields can be overridden for unusual test
-cases. The new row is written directly to Supabase and appears on any open Game
-Feed page through Supabase Realtime.
-
-To use another localhost port:
-
-```env
-GAME_FEED_TEST_PORT=3211
+```text
+http://127.0.0.1:3210/v1
 ```
 
-or:
+The control page does **not** insert Game Feed rows directly. It queues plays into
+an in-memory fake matchup response. The worker continues to call the same league
+and matchup paths it uses against Sleeper, compares cumulative `players_points`
+with its prior snapshot, runs `inferGameFeedEvents()`, and writes only the inferred
+result.
 
-```powershell
-npm run game-feed:test -- --test-port 3211
-```
+Newly selected players are intentionally exposed at zero points for one matchup
+poll before their first queued play is applied. That prevents the first play for a
+new participant from being swallowed as the worker's initial baseline.
 
-To prevent the browser from opening automatically:
+The Test script uses a 5-second poll interval by default. A brand-new participant
+therefore normally takes about 5–10 seconds to produce the first visible play;
+subsequent queued plays for already-baselined players normally appear on the next
+poll.
 
-```powershell
-npm run game-feed:test -- --no-open-test-control
-```
+See `GAME_FEED_TRUE_TESTING.md` for the supported play types, endpoint switch, and
+reset behavior.
 
 ## New-play counter
 

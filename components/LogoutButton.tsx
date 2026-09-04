@@ -1,5 +1,6 @@
 'use client'
 
+import { LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 export default function LogoutButton() {
@@ -11,11 +12,9 @@ export default function LogoutButton() {
   }
 
   return (
-    <button
-      onClick={logout}
-      className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-zinc-950 hover:bg-zinc-200"
-    >
-      Logout
+    <button onClick={logout} className="ll-nav-link ll-logout-button" type="button">
+      <LogOut size={15} />
+      <span>Sign out</span>
     </button>
   )
 }

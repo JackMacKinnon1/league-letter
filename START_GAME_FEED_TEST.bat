@@ -1,9 +1,9 @@
 @echo off
 cd /d "%~dp0"
-title League Letter Game Feed - TEST
- echo Starting TEST Game Feed collector...
-echo You will be asked whether to create sample test cells.
-echo A local Test Play Console will open in your browser.
+title League Letter Game Feed - MOCK SLEEPER TEST
+ echo Starting TRUE TEST Game Feed collector...
+echo A local mock Sleeper API and Test Play Console will open in your browser.
+echo Plays are NOT inserted directly into Supabase; the worker must infer them from matchup score changes.
 echo.
 npm run game-feed:test
 echo.
